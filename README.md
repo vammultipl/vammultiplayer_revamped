@@ -1,4 +1,4 @@
-# VAM Multiplayer v1.0 #
+# VAM Multiplayer #
 
 If you ever wanted to use VAM in a multiplayer setting, it is now a reality! :)
 

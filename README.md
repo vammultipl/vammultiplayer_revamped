@@ -8,7 +8,7 @@ Having some time on my hands I decided to resurrect my old VAM Multiplayer proof
 
 The files are:
 
-* VAMMultiplayer.cs - Is the standalone plugin for VAM Multiplayer
+* VAMMultiplayer.cs - Is the multiplayer plugin for VAM
 
 * vamrobot.VAMMultiplayerTestScene.1.var - Contains a simple test scene, along with the VAM Multiplayer plugin itself
 

@@ -10,7 +10,7 @@ The files are:
 
 * vamrobot.VAMMultiplayerTestScene.1.var - Contains a simple test scene, along with the VAM Multiplayer plugin itself
 
-* VAMMultiplayerUDPServer-v1.0.py and VAMMultiplayerTCPServer-v1.0.py - Are the two python 3.x servers, UDP and TCP
+* VAMMultiplayerUDPServer.py and VAMMultiplayerTCPServer.py - Are the two python 3.x servers, UDP and TCP
 
 The basic steps involved in running VAM Multiplayer are:
 

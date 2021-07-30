@@ -1,4 +1,4 @@
-﻿// VAM Multiplayer v1.0
+﻿// VAM Multiplayer
 // vamrobotics (7-28-2021)
 // https://github.com/vamrobot/vammultiplayer
 

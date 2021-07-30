@@ -8,6 +8,8 @@ Having some time on my hands I decided to resurrect my old VAM Multiplayer proof
 
 The files are:
 
+* VAMMultiplayer.cs - Is the standalone plugin for VAM Multiplayer
+
 * vamrobot.VAMMultiplayerTestScene.1.var - Contains a simple test scene, along with the VAM Multiplayer plugin itself
 
 * VAMMultiplayerUDPServer.py and VAMMultiplayerTCPServer.py - Are the two python 3.x servers, UDP and TCP

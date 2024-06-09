@@ -23,9 +23,9 @@ class VAMMultiplayerServer:
         while True:
             client, address = self.sock.accept()
             client.settimeout(90)
-            threading.Thread(target=self.clientConnection, args=(client,)).start()
+            threading.Thread(target=self.client_connection, args=(client,)).start()
 
-    def clientConnection(self, client):
+    def client_connection(self, client):
         try:
             while True:
                 request = client.recv(65535)
@@ -36,6 +36,7 @@ class VAMMultiplayerServer:
         except Exception as e:
             print(f"Error: {e}")
         finally:
+            self.handle_disconnect(client)
             client.close()
 
     def handle_request(self, client, request):
@@ -47,31 +48,35 @@ class VAMMultiplayerServer:
         elif len(parts) == 9:
             self.handle_position_update(client, parts)
 
-    def handle_new_player(self, client, playerName):
+    def handle_new_player(self, client, player_name):
         with lock:
-            if playerName not in players:
-                players[playerName] = {}
-                print(f"Adding new player: {playerName.decode()}")
-                client.send(playerName + b" added to server.")
+            if player_name not in players:
+                players[player_name] = {}
+                print(f"Adding new player: {player_name.decode()}")
+                client.send(player_name + b" added to server.")
             else:
-                client.send(playerName + b" already added to server.")
+                client.send(player_name + b" already added to server.")
 
-    def handle_position_query(self, client, playerName, targetName):
+    def handle_position_query(self, client, player_name, target_name):
         with lock:
-            target_data = players.get(playerName, {}).get(targetName, b"none|")
+            target_data = players.get(player_name, {}).get(target_name, b"none|")
         if target_data == b"none|":
             client.send(target_data)
         else:
-            client.send(playerName + b"," + targetName + b"," + target_data)
+            client.send(player_name + b"," + target_name + b"," + target_data)
 
     def handle_position_update(self, client, data):
-        playerName, targetName = data[0], data[1]
+        player_name, target_name = data[0], data[1]
         position_data = b",".join(data[2:])
         with lock:
-            if playerName not in players:
-                players[playerName] = {}
-            players[playerName][targetName] = position_data
+            if player_name not in players:
+                players[player_name] = {}
+            players[player_name][target_name] = position_data
         client.send(b"Target data recorded|")
+
+    def handle_disconnect(self, client):
+        # Logic to handle player disconnects can be added here
+        pass
 
 def main():
     host = "0.0.0.0"
@@ -83,3 +88,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

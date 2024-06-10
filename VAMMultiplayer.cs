@@ -633,7 +633,7 @@ namespace vamrobotics
             if (client != null)
             {
                 diagnosticsTextField.text += "error: already connected." + "\n";
-                SuperController.LogMessage("Already connected to server.")
+                SuperController.LogMessage("Already connected to server.");
 		return;
             }
 
@@ -699,14 +699,14 @@ namespace vamrobotics
 		    byte[] responseBytes = new byte[65535]; // Buffer for receiving data
 		    int bytesReceived = 0;
 
-		    string responseStr = ""
+		    string responseStr = "";
 		    while (true)
 		    {
 			bytesReceived = client.Receive(responseBytes, 0, responseBytes.Length, SocketFlags.None);
 			responseBuilder.Append(Encoding.UTF8.GetString(responseBytes, 0, bytesReceived));
 
 			// Check if the message contains the terminating "|"
-			responseStr = responseBuilder.ToString()
+			responseStr = responseBuilder.ToString();
 			if (responseStr.Contains("|"))
 			{
 			    break;

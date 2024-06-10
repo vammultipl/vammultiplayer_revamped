@@ -688,7 +688,7 @@ namespace vamrobotics
 			int bytesSent = client.Send(messageBytes, totalBytesSent, bytesLeft, SocketFlags.None);
 			if (bytesSent == 0)
 			{
-			    throw new SocketException("Socket connection was closed or an error occurred.");
+			    throw new SocketException((int)SocketError.ConnectionReset);
 			}
 
 			totalBytesSent += bytesSent;

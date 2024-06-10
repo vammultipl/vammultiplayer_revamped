@@ -308,8 +308,8 @@ namespace vamrobotics
 			    if (!string.IsNullOrEmpty(res) && res != "none|")
 			    {
 				// Truncate trailing "|" if there is one
-				res = res.TrimEnd('|');
-				string[] targetData = res.Split(',');
+				string trimmedRes = res.TrimEnd('|');
+				string[] targetData = trimmedRes.Split(',');
 
 				if (targetData.Length == 9)
 				{

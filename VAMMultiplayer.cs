@@ -312,66 +312,80 @@ namespace vamrobotics
 				// Send the batched message if there are updates
 				if (batchedMessage.Length > 0 && batchedMessage.ToString() != initialMessage && client != null)
 				{
-					string response = SendToServer(batchedMessage.ToString() + "|");
-								;//SuperController.LogError("MESSAGE SENT");
-					;//SuperController.LogError("Response " + response);
-					// Parse the batched response
-					string[] responses = response.Split(';');
-					foreach (string res in responses)
+					try
 					{
-						if (!string.IsNullOrEmpty(res) && res != "none|")
+						string response = SendToServer(batchedMessage.ToString() + "|");
+									;//SuperController.LogError("MESSAGE SENT");
+						;//SuperController.LogError("Response " + response);
+						// Parse the batched response
+						string[] responses = response.Split(';');
+						foreach (string res in responses)
 						{
-							// Truncate trailing "|" if there is one
-							string trimmedRes = res.TrimEnd('|');
-							string[] targetData = trimmedRes.Split(',');
-
-							if (targetData.Length == 9)
+							if (!string.IsNullOrEmpty(res) && res != "none|")
 							{
-								// Make sure we have that player first
-								int playerIdx = players.FindIndex(p => p.playerName == targetData[0]);
-								if (playerIdx != -1)
+								// Truncate trailing "|" if there is one
+								string trimmedRes = res.TrimEnd('|');
+								string[] targetData = trimmedRes.Split(',');
+
+								if (targetData.Length == 9)
 								{
-									Atom otherPlayerAtom = SuperController.singleton.GetAtomByUid(targetData[0]);
-									FreeControllerV3 targetObject = otherPlayerAtom.GetStorableByID(targetData[1]) as FreeControllerV3;
-
-									if (targetObject != null)
+									// Make sure we have that player first
+									int playerIdx = players.FindIndex(p => p.playerName == targetData[0]);
+									if (playerIdx != -1)
 									{
-										if (positionsBool.val)
-										{
-											Vector3 tempPosition = targetObject.transform.position;
-											tempPosition.x = float.Parse(targetData[2]);
-											tempPosition.y = float.Parse(targetData[3]);
-											tempPosition.z = float.Parse(targetData[4]);
+										Atom otherPlayerAtom = SuperController.singleton.GetAtomByUid(targetData[0]);
+										FreeControllerV3 targetObject = otherPlayerAtom.GetStorableByID(targetData[1]) as FreeControllerV3;
 
-											targetObject.transform.position = tempPosition;
+										if (targetObject != null)
+										{
+											if (positionsBool.val)
+											{
+												Vector3 tempPosition = targetObject.transform.position;
+												tempPosition.x = float.Parse(targetData[2]);
+												tempPosition.y = float.Parse(targetData[3]);
+												tempPosition.z = float.Parse(targetData[4]);
+
+												targetObject.transform.position = tempPosition;
+											}
+
+											if (rotationsBool.val)
+											{
+												Quaternion tempRotation = targetObject.transform.rotation;
+												tempRotation.w = float.Parse(targetData[5]);
+												tempRotation.x = float.Parse(targetData[6]);
+												tempRotation.y = float.Parse(targetData[7]);
+												tempRotation.z = float.Parse(targetData[8]);
+
+												targetObject.transform.rotation = tempRotation;
+											}
 										}
-
-										if (rotationsBool.val)
-										{
-											Quaternion tempRotation = targetObject.transform.rotation;
-											tempRotation.w = float.Parse(targetData[5]);
-											tempRotation.x = float.Parse(targetData[6]);
-											tempRotation.y = float.Parse(targetData[7]);
-											tempRotation.z = float.Parse(targetData[8]);
-
-											targetObject.transform.rotation = tempRotation;
+										else {
+											;//SuperController.LogError("TARGET OBJECT NULL");
 										}
 									}
 									else {
-										;//SuperController.LogError("TARGET OBJECT NULL");
+										;//SuperController.LogError("PLAYER NOT FOUND AGAIN" + targetData[0]);
 									}
 								}
-								else {
-									;//SuperController.LogError("PLAYER NOT FOUND AGAIN" + targetData[0]);
+								else
+								{
+									;//SuperController.LogError("Malformed server response: " + res);
 								}
+							} else {
+									;//SuperController.LogError("NONE RESPONSE");
 							}
-							else
-							{
-								;//SuperController.LogError("Malformed server response: " + res);
-							}
-						} else {
-								;//SuperController.LogError("NONE RESPONSE");
 						}
+					}
+					catch (SocketException ex)
+					{
+					    // Handle the socket exception
+					    SuperController.LogError("SocketException caught: " + ex.Message);
+					    // You can add additional logic here, such as retrying the connection or notifying the user
+					}
+					catch (Exception ex)
+					{
+					    // Handle other exceptions
+					    SuperController.LogError("Exception caught: " + ex.Message);
 					}
 				}
 
@@ -693,10 +707,11 @@ namespace vamrobotics
 		    return "Not Connected.";
 		}
 	    }
-	    catch (SocketException ex)
+	    catch (SocketException)
 	    {
-		SuperController.LogError($"SocketException: {ex.Message}");
-		return "Error: Connection problem.";
+	        // Log the error and rethrow the exception
+		SuperController.LogError("SocketException: A socket error occurred.");
+		throw; // Rethrow the exception to be handled by the caller
 	    }
 	}
 

@@ -124,6 +124,7 @@ namespace vamrobotics
                 // Add new 'servers.Add("NEW SERVER IP");' to add new servers to the list
                 servers.Add("127.0.0.1");
                 servers.Add("192.168.1.1");
+                servers.Add("20.79.154.48");
                 serverChooser = new JSONStorableStringChooser("Server Chooser", servers, servers[0], "Select Server", ServerChooserCallback);
                 RegisterStringChooser(serverChooser);
                 CreatePopup(serverChooser, true);

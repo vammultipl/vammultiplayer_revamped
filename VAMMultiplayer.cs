@@ -258,137 +258,109 @@ namespace vamrobotics
                 {
                     sw.Stop();
 
-                    // Updates the position and rotation of every target for every 'other' player and sends the current position and rotation data to the server for the main player
-                    foreach (string playerName in playerList)
-                    {
-                        if (playerName != playerChooser.val)
-                        {
-                            // Find correct player in the List
-                            int playerIndex = players.FindIndex(p => p.playerName == playerName);
-                            Player player = players[playerIndex];
+		    // Prepare batched message for sending updates
+		    StringBuilder batchedMessage = new StringBuilder(playerChooser.val + ";");
 
-                            //SuperController.LogMessage(playerName + "," + playerIndex.ToString());
+		    // Collecting updates to send
+		    Atom playerAtom = SuperController.singleton.GetAtomByUid(playerChooser.val);
 
-                            // If server connection is live
-                            if (client != null)
-                            {
-                                // Update only target positions and rotations for the 'other' players
-                                foreach (Player.TargetData target in player.playerTargets)
-                                {
-                                    //SuperController.LogMessage(playerName + "," + playerIndex.ToString() + "," + target.targetName);
+		    // Find correct player in the List
+		    int playerIndex = players.FindIndex(p => p.playerName == playerChooser.val);
+		    Player player = players[playerIndex];
 
-                                    if (CheckIfTargetIsUpdateable(target.targetName))
-                                    {
-                                        string response = SendToServer(player.playerName + "," + target.targetName + "|");
+		    // Update only changed target positions and rotations for the main player
+		    foreach (Player.TargetData target in player.playerTargets)
+		    {
+			if (CheckIfTargetIsUpdateable(target.targetName))
+			{
+			    FreeControllerV3 targetObject = playerAtom.GetStorableByID(target.targetName) as FreeControllerV3;
 
-                                        //SuperController.LogMessage("Sent: " + player.playerName + "," + target.targetName + "|");
-                                        //SuperController.LogMessage("Received: " + response);
+			    if (targetObject != null)
+			    {
+				if (targetObject.transform.position != target.positionOld || targetObject.transform.rotation != target.rotationOld)
+				{
+				    // Append main player's target position and rotation data to the batched message
+				    batchedMessage.Append($"{target.targetName},{targetObject.transform.position.x},{targetObject.transform.position.y},{targetObject.transform.position.z},{targetObject.transform.rotation.w},{targetObject.transform.rotation.x},{targetObject.transform.rotation.y},{targetObject.transform.rotation.z};");
 
-                                        if (response != "none|")
-                                        {
-                                            // Parse the response from the server and assign the position and rotation data to the target
-                                            string[] targetData = response.Split(',');
+				    // Update the 'Old' position and rotation data
+				    if (positionsBool.val)
+				    {
+					target.positionOld = targetObject.transform.position;
+				    }
 
-                                            if (targetData.Length == 9)
-                                            {
-                                                Atom playerAtom = SuperController.singleton.GetAtomByUid(targetData[0]);
-                                                FreeControllerV3 targetObject = playerAtom.GetStorableByID(target.targetName) as FreeControllerV3;
+				    if (rotationsBool.val)
+				    {
+					target.rotationOld = targetObject.transform.rotation;
+				    }
+				}
+			    }
+			}
+		    }
 
-                                                if (targetObject != null)
-                                                {
-                                                    if (positionsBool.val)
-                                                    {
-                                                        Vector3 tempPosition = targetObject.transform.position;
-                                                        tempPosition.x = float.Parse(targetData[2]);
-                                                        tempPosition.y = float.Parse(targetData[3]);
-                                                        tempPosition.z = float.Parse(targetData[4]);
+		    // Send the batched message if there are updates
+		    if (batchedMessage.Length > 0 && client != null)
+		    {
+			string response = SendToServer(batchedMessage.ToString() + "|");
+			// Parse the batched response
+			string[] responses = response.Split(';');
+			foreach (string res in responses)
+			{
+			    if (!string.IsNullOrEmpty(res) && res != "none|")
+			    {
+				// Truncate trailing "|" if there is one
+				res = res.TrimEnd('|');
+				string[] targetData = res.Split(',');
 
-                                                        targetObject.transform.position = tempPosition;
-                                                    }
+				if (targetData.Length == 9)
+				{
+				    // Make sure we have that player first
+				    int playerIndex = players.FindIndex(p => p.playerName == targetData[0]);
+				    if (playerIndex != -1)
+			            {
+					    Atom otherPlayerAtom = SuperController.singleton.GetAtomByUid(targetData[0]);
+					    FreeControllerV3 targetObject = otherPlayerAtom.GetStorableByID(targetData[1]) as FreeControllerV3;
 
-                                                    if (rotationsBool.val)
-                                                    {
-                                                        Quaternion tempRotation = targetObject.transform.rotation;
-                                                        tempRotation.w = float.Parse(targetData[5]);
-                                                        tempRotation.x = float.Parse(targetData[6]);
-                                                        tempRotation.y = float.Parse(targetData[7]);
-                                                        tempRotation.z = float.Parse(targetData[8]);
+					    if (targetObject != null)
+					    {
+						if (positionsBool.val)
+						{
+						    Vector3 tempPosition = targetObject.transform.position;
+						    tempPosition.x = float.Parse(targetData[2]);
+						    tempPosition.y = float.Parse(targetData[3]);
+						    tempPosition.z = float.Parse(targetData[4]);
 
-                                                        targetObject.transform.rotation = tempRotation;
-                                                    }
-                                                }
-                                            }
-                                            else
-                                            {
-                                                SuperController.LogError("Malformed server response: " + response);
-                                            }
-                                        }
+						    targetObject.transform.position = tempPosition;
+						}
 
-                                        //SuperController.LogMessage(response);
-                                    }
-                                }
-                            }
-                        }
-                        else
-                        {
-                            Atom playerAtom = SuperController.singleton.GetAtomByUid(playerName);
+						if (rotationsBool.val)
+						{
+						    Quaternion tempRotation = targetObject.transform.rotation;
+						    tempRotation.w = float.Parse(targetData[5]);
+						    tempRotation.x = float.Parse(targetData[6]);
+						    tempRotation.y = float.Parse(targetData[7]);
+						    tempRotation.z = float.Parse(targetData[8]);
 
-                            //SuperController.LogMessage(playerAtom.rigidbodies.First(rb => rb.name == "VaginaTrigger"));
+						    targetObject.transform.rotation = tempRotation;
+						}
+					    }
+				    }
+				}
+				else
+				{
+				    SuperController.LogError("Malformed server response: " + res);
+				}
+			    }
+			}
+		    }
 
-                            // Find correct player in the List
-                            int playerIndex = players.FindIndex(p => p.playerName == playerName);
-                            Player player = players[playerIndex];
-
-                            // Update only changed target positions and rotations for the main player
-                            foreach (Player.TargetData target in player.playerTargets)
-                            {
-                                //SuperController.LogError(target.targetName);
-
-                                if (CheckIfTargetIsUpdateable(target.targetName))
-                                {
-                                    FreeControllerV3 targetObject = playerAtom.GetStorableByID(target.targetName) as FreeControllerV3;
-
-                                    if (targetObject != null)
-                                    {
-                                        //SuperController.LogError((playerName + "," + target.targetName + "," + target.position.x.ToString() + "," + target.position.y.ToString() + "," + target.position.z.ToString() + "," + target.rotation.w.ToString() + "," + target.rotation.x.ToString() + "," + target.rotation.y.ToString() + "," + target.rotation.z.ToString() + "|"));
-                                        //SuperController.LogError((playerName + "," + target.targetName + "," + target.positionOld.x.ToString() + "," + target.positionOld.y.ToString() + "," + target.positionOld.z.ToString() + "," + target.rotationOld.w.ToString() + "," + target.rotationOld.x.ToString() + "," + target.rotationOld.y.ToString() + "," + target.rotationOld.z.ToString() + "|"));
-
-                                        if (targetObject.transform.position != target.positionOld || targetObject.transform.rotation != target.rotationOld)
-                                        {
-                                            // If server connection is live
-                                            if (client != null)
-                                            {
-                                                // Send main player's target position and rotation data to the server to be recorded
-                                                string response = SendToServer(playerName + "," + target.targetName + "," + targetObject.transform.position.x.ToString() + "," + targetObject.transform.position.y.ToString() + "," + targetObject.transform.position.z.ToString() + "," + targetObject.transform.rotation.w.ToString() + "," + targetObject.transform.rotation.x.ToString() + "," + targetObject.transform.rotation.y.ToString() + "," + targetObject.transform.rotation.z.ToString() + "|");
-
-                                                //SuperController.LogMessage(response);
-                                            }
-                                        }
-
-                                        // Update the 'Old' position and rotation data
-                                        if (positionsBool.val)
-                                        {
-                                            target.positionOld = targetObject.transform.position;
-                                        }
-
-                                        if (rotationsBool.val)
-                                        {
-                                            target.rotationOld = targetObject.transform.rotation;
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    sw = Stopwatch.StartNew();
-                }
-            }
-            catch (Exception e)
-            {
-                SuperController.LogError("Exception caught: " + e);
-            }
-        }
+		    sw = Stopwatch.StartNew();
+		}
+	    }
+	    catch (Exception e)
+	    {
+		SuperController.LogError("Exception caught: " + e);
+	    }
+	}
 
         protected bool CheckIfTargetIsUpdateable(string targetName)
         {

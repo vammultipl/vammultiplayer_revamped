@@ -39,13 +39,13 @@ class VAMMultiplayerServer:
             client.close()
 
     def handle_request(self, client, request):
-        parts = request.split(b",")
+        parts = request.split(b";")
         if len(parts) == 1:
             self.handle_new_player(client, parts[0])
-        elif len(parts) == 2:
-            self.handle_position_query(client, *parts)
-        elif len(parts) == 9:
-            self.handle_position_update(client, parts)
+        else:
+            player_name = parts[0]
+            updates = parts[1:]
+            self.handle_batch_update(client, player_name, updates)
 
     def handle_new_player(self, client, player_name):
         with self.lock:
@@ -56,23 +56,29 @@ class VAMMultiplayerServer:
             else:
                 client.send(player_name + b" already added to server.")
 
-    def handle_position_query(self, client, player_name, target_name):
+    def handle_batch_update(self, client, player_name, updates):
         with self.lock:
-            target_data = self.players.get(player_name, {}).get(target_name, b"none|")
-        if target_data == b"none|":
-            client.send(target_data)
-        else:
-            client.send(player_name + b"," + target_name + b"," + target_data)
+            # Update positions and rotations for the player
+            for update in updates:
+                data = update.split(b",")
+                if len(data) == 8:
+                    target_name = data[0]
+                    position_data = b",".join(data[1:])
+                    if player_name not in self.players:
+                        self.players[player_name] = {}
+                    self.players[player_name][target_name] = position_data
 
-    def handle_position_update(self, client, data):
-        player_name = data[0]
-        target_name = data[1]
-        position_data = b",".join(data[2:])
-        with self.lock:
-            if player_name not in self.players:
-                self.players[player_name] = {}
-            self.players[player_name][target_name] = position_data
-        client.send(b"Target data recorded|")
+            # Prepare response with all other players' joint data
+            response = []
+            for other_player, targets in self.players.items():
+                if other_player != player_name:
+                    for target_name, pos_rot_data in targets.items():
+                        response.append(f"{other_player},{target_name},{pos_rot_data.decode()}")
+
+        if response:
+            client.send(";".join(response).encode() + b"|")
+        else:
+            client.send(b"none|")
 
     def handle_disconnect(self, client):
         # Logic to handle player disconnects can be added here

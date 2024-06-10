@@ -65,6 +65,7 @@ class VAMMultiplayerServer:
                     target_name = data[0]
                     position_data = b",".join(data[1:])
                     if player_name not in self.players:
+                        print(f"Adding new player: {player_name.decode()}")
                         self.players[player_name] = {}
                     self.players[player_name][target_name] = position_data
 

@@ -185,7 +185,7 @@ namespace vamrobotics
                 CreateToggle(hipControlBool);
                 pelvisControlBool = new JSONStorableBool("pelvisControl", true);
                 CreateToggle(pelvisControlBool);
-                chestControlBool = new JSONStorableBool("chestControl", false);
+                chestControlBool = new JSONStorableBool("chestControl", true);
                 CreateToggle(chestControlBool);
                 headControlBool = new JSONStorableBool("headControl", true);
                 CreateToggle(headControlBool);
@@ -233,13 +233,13 @@ namespace vamrobotics
                 CreateToggle(rThighControlBool);
                 lThighControlBool = new JSONStorableBool("lThighControl", true);
                 CreateToggle(lThighControlBool);
-                rArmControlBool = new JSONStorableBool("rArmControl", false);
+                rArmControlBool = new JSONStorableBool("rArmControl", true);
                 CreateToggle(rArmControlBool);
-                lArmControlBool = new JSONStorableBool("lArmControl", false);
+                lArmControlBool = new JSONStorableBool("lArmControl", true);
                 CreateToggle(lArmControlBool);
-                rShoulderControlBool = new JSONStorableBool("rShoulderControl", false);
+                rShoulderControlBool = new JSONStorableBool("rShoulderControl", true);
                 CreateToggle(rShoulderControlBool);
-                lShoulderControlBool = new JSONStorableBool("lShoulderControl", false);
+                lShoulderControlBool = new JSONStorableBool("lShoulderControl", true);
                 CreateToggle(lShoulderControlBool);
             }
             catch (Exception e)
@@ -618,7 +618,9 @@ namespace vamrobotics
             //  Close any established socket server connection
             if (client != null)
             {
-                DisconnectFromServerCallback();
+                diagnosticsTextField.text += "error: already connected." + "\n";
+                SuperController.LogMessage("Already connected to server.")
+		return;
             }
 
             try
@@ -633,7 +635,10 @@ namespace vamrobotics
                 {
                     client = new Socket(ipAddress.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
 
-                    client.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.KeepAlive, true);
+                    // client.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.KeepAlive, true);
+
+		    client.SendTimeout = 5000;    // 5 seconds timeout for send operations
+		    client.ReceiveTimeout = 5000; // 5 seconds timeout for receive operations
                 }
                 else if (protocolChooser.val == "UDP")
                 {
@@ -652,43 +657,103 @@ namespace vamrobotics
             }
         }
 
-        protected string SendToServer(string message)
-        {
-            // Sends data to server over existing socket connection
-            if (client != null)
-            {
-                byte[] messageBytes = Encoding.ASCII.GetBytes(message);
+	protected string SendToServer(string message)
+	{
+	    try
+	    {
+		// Sends data to server over existing socket connection
+		if (client != null)
+		{
+		    byte[] messageBytes = Encoding.ASCII.GetBytes(message);
 
-                int bytesSent = client.Send(messageBytes);
+		    int totalBytesSent = 0;
+		    int bytesLeft = messageBytes.Length;
 
-                byte[] responseBytes = new byte[65535];
+		    while (bytesLeft > 0)
+		    {
+			int bytesSent = client.Send(messageBytes, totalBytesSent, bytesLeft, SocketFlags.None);
+			if (bytesSent == 0)
+			{
+			    throw new SocketException("Socket connection was closed or an error occurred.");
+			}
 
-                int bytesReceived = client.Receive(responseBytes, 0, responseBytes.Length, 0);
+			totalBytesSent += bytesSent;
+			bytesLeft -= bytesSent;
+		    }
 
-                return Encoding.UTF8.GetString(responseBytes, 0, bytesReceived);
-            }
-            else
-            {
-                SuperController.LogError("Tried to send but not connected to any server.");
+		    byte[] responseBytes = new byte[65535];
+		    int bytesReceived = client.Receive(responseBytes, 0, responseBytes.Length, SocketFlags.None);
 
-                return "Not Connected.";
-            }
-        }
+		    return Encoding.UTF8.GetString(responseBytes, 0, bytesReceived);
+		}
+		else
+		{
+		    SuperController.LogError("Tried to send but not connected to any server.");
 
-        protected void DisconnectFromServerCallback()
-        {
-            // Closes the current socket connection to the server
-            if (client != null)
-            {
-                client.Shutdown(SocketShutdown.Both);
-                client.Close();
-                client = null;
+		    return "Not Connected.";
+		}
+	    }
+	    catch (SocketException ex)
+	    {
+		SuperController.LogError($"SocketException: {ex.Message}");
+		return "Error: Connection problem.";
+	    }
+	}
 
-                diagnosticsTextField.text += "Disconnected from server.\n";
 
-                SuperController.LogMessage("Disconnected from server.");
-            }
-        }
+	protected void DisconnectFromServerCallback()
+	{
+	    // Check if the client is not null and is connected
+	    if (client != null)
+	    {
+		try
+		{
+		    // Shutdown both send and receive operations
+		    if (client.Connected)
+		    {
+			client.Shutdown(SocketShutdown.Both);
+		    }
+		}
+		catch (SocketException ex)
+		{
+		    // Log any socket exceptions that occur during shutdown
+		    SuperController.LogMessage($"SocketException during shutdown: {ex.Message}");
+		}
+		catch (ObjectDisposedException ex)
+		{
+		    // Handle the case where the socket is already disposed
+		    SuperController.LogMessage($"ObjectDisposedException during shutdown: {ex.Message}");
+		}
+		finally
+		{
+		    try
+		    {
+			// Close the socket connection
+			client.Close();
+		    }
+		    catch (SocketException ex)
+		    {
+			// Log any socket exceptions that occur during close
+			SuperController.LogMessage($"SocketException during close: {ex.Message}");
+		    }
+		    catch (ObjectDisposedException ex)
+		    {
+			// Handle the case where the socket is already disposed
+			SuperController.LogMessage($"ObjectDisposedException during close: {ex.Message}");
+		    }
+		    finally
+		    {
+			// Set the client to null to indicate it is disconnected
+			client = null;
+
+			// Update UI and log the disconnection
+			diagnosticsTextField.text += "Disconnected from server.\n";
+			SuperController.LogMessage("Disconnected from server.");
+		    }
+		}
+	    }
+	}
+
 
         protected void OnDestroy()
         {

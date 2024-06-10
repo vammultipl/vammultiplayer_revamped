@@ -314,8 +314,8 @@ namespace vamrobotics
 				if (targetData.Length == 9)
 				{
 				    // Make sure we have that player first
-				    int playerIndex = players.FindIndex(p => p.playerName == targetData[0]);
-				    if (playerIndex != -1)
+				    int playerIdx = players.FindIndex(p => p.playerName == targetData[0]);
+				    if (playerIdx != -1)
 			            {
 					    Atom otherPlayerAtom = SuperController.singleton.GetAtomByUid(targetData[0]);
 					    FreeControllerV3 targetObject = otherPlayerAtom.GetStorableByID(targetData[1]) as FreeControllerV3;

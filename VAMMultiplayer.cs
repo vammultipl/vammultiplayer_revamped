@@ -286,6 +286,7 @@ namespace vamrobotics
 							//if (targetObject.transform.position != target.positionOld || targetObject.transform.rotation != target.rotationOld)
 							{
 								// Append main player's target position and rotation data to the batched message
+								// TODO: if value < 0.00001, round down to 0 to save space
 								batchedMessage.Append($"{target.targetName},{targetObject.transform.position.x},{targetObject.transform.position.y},{targetObject.transform.position.z},{targetObject.transform.rotation.w},{targetObject.transform.rotation.x},{targetObject.transform.rotation.y},{targetObject.transform.rotation.z};");
 
 								// Update the 'Old' position and rotation data
@@ -703,21 +704,23 @@ namespace vamrobotics
 		    StringBuilder responseBuilder = new StringBuilder();
 		    byte[] responseBytes = new byte[65535]; // Buffer for receiving data
 		    int bytesReceived = 0;
-
 		    string responseStr = "";
-		    while (true)
+
+		    bytesReceived = client.Receive(responseBytes, 0, responseBytes.Length, SocketFlags.None);
+		    if (bytesReceived <= 0)
 		    {
-			bytesReceived = client.Receive(responseBytes, 0, responseBytes.Length, SocketFlags.None);
-			responseBuilder.Append(Encoding.UTF8.GetString(responseBytes, 0, bytesReceived));
-
-			// Check if the message contains the terminating "|"
-			responseStr = responseBuilder.ToString();
-			if (responseStr.Contains("|"))
-			{
-			    break;
-			}
+		    	// No more data to receive
+		    	return "";
 		    }
+		    responseBuilder.Append(Encoding.UTF8.GetString(responseBytes, 0, bytesReceived));
 
+		    // Check if the message contains the terminating "|"
+		    responseStr = responseBuilder.ToString();
+		    if (!responseStr.Contains("|"))
+	    	    {
+		        return ""; // malformed or truncated
+		    }
+		    
 		    // Convert the accumulated response to a string and trim any excess data after "|"
 		    int endIndex = responseStr.LastIndexOf("|") + 1;
 		    return responseStr.Substring(0, endIndex);
@@ -728,14 +731,14 @@ namespace vamrobotics
 		    return "Not Connected.";
 		}
 	    }
-	    catch (SocketException)
-	    {
-	        // Log the error and rethrow the exception
-		SuperController.LogError("SocketException: A socket error occurred.");
-		throw; // Rethrow the exception to be handled by the caller
-	    }
+		catch (Exception ex)
+		{
+			SuperController.LogError("Exception: " + ex.Message);
+			client?.Close();
+			client = null;
+			throw;
+		}
 	}
-
 
 	protected void DisconnectFromServerCallback()
 	{

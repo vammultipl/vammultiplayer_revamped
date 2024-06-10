@@ -107,14 +107,15 @@ namespace vamrobotics
 
                 // Setup update frequency selector
                 List<string> updateFrequencies = new List<string>();
-                updateFrequencies.Add("1.0");
                 updateFrequencies.Add("5.0");
                 updateFrequencies.Add("10.0");
                 updateFrequencies.Add("20.0");
+                updateFrequencies.Add("25.0");
                 updateFrequencies.Add("30.0");
                 updateFrequencies.Add("40.0");
                 updateFrequencies.Add("50.0");
                 updateFrequencies.Add("60.0");
+                updateFrequencies.Add("75.0");
                 updateFrequencies.Add("500.0");
                 updateFrequencyChooser = new JSONStorableStringChooser("Update Frequency Chooser", updateFrequencies, updateFrequencies[2], "Update Frequency", UpdateFrequencyChooserCallback);
                 RegisterStringChooser(updateFrequencyChooser);
@@ -126,7 +127,7 @@ namespace vamrobotics
                 servers.Add("127.0.0.1");
                 servers.Add("192.168.1.1");
                 servers.Add("20.79.154.48");
-                serverChooser = new JSONStorableStringChooser("Server Chooser", servers, servers[0], "Select Server", ServerChooserCallback);
+                serverChooser = new JSONStorableStringChooser("Server Chooser", servers, servers[2], "Select Server", ServerChooserCallback);
                 RegisterStringChooser(serverChooser);
                 CreatePopup(serverChooser, true);
 
@@ -144,7 +145,7 @@ namespace vamrobotics
                 List<string> protocols = new List<string>();
                 protocols.Add("UDP");
                 protocols.Add("TCP");
-                protocolChooser = new JSONStorableStringChooser("Protocol Chooser", protocols, protocols[0], "Select Net Protocol", ProtocolChooserCallback);
+                protocolChooser = new JSONStorableStringChooser("Protocol Chooser", protocols, protocols[1], "Select Net Protocol", ProtocolChooserCallback);
                 RegisterStringChooser(protocolChooser);
                 CreatePopup(protocolChooser, true);
 
@@ -178,11 +179,11 @@ namespace vamrobotics
                 checkAll.button.onClick.AddListener(CheckAllCallback);
 
                 // Setup player's target bools
-                controlBool = new JSONStorableBool("control", false);
+                controlBool = new JSONStorableBool("control", true);
                 CreateToggle(controlBool);
-                hipControlBool = new JSONStorableBool("hipControl", false);
+                hipControlBool = new JSONStorableBool("hipControl", true);
                 CreateToggle(hipControlBool);
-                pelvisControlBool = new JSONStorableBool("pelvisControl", false);
+                pelvisControlBool = new JSONStorableBool("pelvisControl", true);
                 CreateToggle(pelvisControlBool);
                 chestControlBool = new JSONStorableBool("chestControl", false);
                 CreateToggle(chestControlBool);
@@ -192,9 +193,9 @@ namespace vamrobotics
                 CreateToggle(rHandControlBool);
                 lHandControlBool = new JSONStorableBool("lHandControl", true);
                 CreateToggle(lHandControlBool);
-                rFootControlBool = new JSONStorableBool("rFootControl", false);
+                rFootControlBool = new JSONStorableBool("rFootControl", true);
                 CreateToggle(rFootControlBool);
-                lFootControlBool = new JSONStorableBool("lFootControl", false);
+                lFootControlBool = new JSONStorableBool("lFootControl", true);
                 CreateToggle(lFootControlBool);
                 neckControlBool = new JSONStorableBool("neckControl", false);
                 CreateToggle(neckControlBool);
@@ -216,9 +217,9 @@ namespace vamrobotics
                 CreateToggle(rElbowControlBool);
                 lElbowControlBool = new JSONStorableBool("lElbowControl", false);
                 CreateToggle(lElbowControlBool);
-                rKneeControlBool = new JSONStorableBool("rKneeControl", false);
+                rKneeControlBool = new JSONStorableBool("rKneeControl", true);
                 CreateToggle(rKneeControlBool);
-                lKneeControlBool = new JSONStorableBool("lKneeControl", false);
+                lKneeControlBool = new JSONStorableBool("lKneeControl", true);
                 CreateToggle(lKneeControlBool);
                 rToeControlBool = new JSONStorableBool("rToeControl", false);
                 CreateToggle(rToeControlBool);
@@ -228,9 +229,9 @@ namespace vamrobotics
                 CreateToggle(abdomenControlBool);
                 abdomen2ControlBool = new JSONStorableBool("abdomen2Control", false);
                 CreateToggle(abdomen2ControlBool);
-                rThighControlBool = new JSONStorableBool("rThighControl", false);
+                rThighControlBool = new JSONStorableBool("rThighControl", true);
                 CreateToggle(rThighControlBool);
-                lThighControlBool = new JSONStorableBool("lThighControl", false);
+                lThighControlBool = new JSONStorableBool("lThighControl", true);
                 CreateToggle(lThighControlBool);
                 rArmControlBool = new JSONStorableBool("rArmControl", false);
                 CreateToggle(rArmControlBool);

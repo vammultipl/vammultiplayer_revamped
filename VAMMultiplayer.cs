@@ -314,6 +314,11 @@ namespace vamrobotics
 				{
 					try
 					{
+						// Remove the last character (trailing semicolon)
+						if (batchedMessage[batchedMessage.Length - 1] == ';')
+						{
+						    batchedMessage.Remove(batchedMessage.Length - 1, 1);
+						}
 						string response = SendToServer(batchedMessage.ToString() + "|");
 									;//SuperController.LogError("MESSAGE SENT");
 						;//SuperController.LogError("Response " + response);

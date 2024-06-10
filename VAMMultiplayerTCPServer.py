@@ -69,15 +69,13 @@ class VAMMultiplayerServer:
                 self.players[player_name] = {}
             # Update positions and rotations for the player
             for update in updates:
-                data = update.split(b",", 1)
-                if len(data) == 2:
+                data = update.split(b",")
+                if len(data) == 8:
                     target_name = data[0]
-                    position_data = data[1]
-                    if position_data.count(b',') != 6:  # count should be done with bytes
-                        print(f"Error: got malformed position_data: {position_data}")
+                    position_data = b",".join(data[1:])
                     self.players[player_name][target_name] = position_data
                 else:
-                    print(f"Error: got malformed input")
+                    print(f"Error: got malformed input (len: {len(data)}, updateStr: {update}, update: {update.decode()}")
 
             # Prepare response with all other players' joint data
             response = []

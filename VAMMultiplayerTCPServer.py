@@ -73,7 +73,7 @@ class VAMMultiplayerServer:
                 if len(data) == 2:
                     target_name = data[0]
                     position_data = data[1]
-                    if position_data.count(',') != 6:
+                    if position_data.count(b',') != 6:  # count should be done with bytes
                         print(f"Error: got malformed position_data: {position_data}")
                     self.players[player_name][target_name] = position_data
                 else:

@@ -164,7 +164,7 @@ namespace vamrobotics
                 // Setup positions and rotations bools
                 positionsBool = new JSONStorableBool("Update Positions", true);
                 CreateToggle(positionsBool);
-                rotationsBool = new JSONStorableBool("Update Rotations", false);
+                rotationsBool = new JSONStorableBool("Update Rotations", true);
                 CreateToggle(rotationsBool);
 
                 // Setup a text fields for targets

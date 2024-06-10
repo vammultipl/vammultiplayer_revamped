@@ -7,9 +7,6 @@
 import socket
 import threading
 
-players = {}
-lock = threading.Lock()
-
 class VAMMultiplayerServer:
     def __init__(self, host, port):
         self.host = host
@@ -17,6 +14,8 @@ class VAMMultiplayerServer:
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self.sock.bind((self.host, self.port))
+        self.players = {}
+        self.lock = threading.Lock()
 
     def listen(self):
         self.sock.listen(2)  # Only expecting two players.
@@ -49,29 +48,30 @@ class VAMMultiplayerServer:
             self.handle_position_update(client, parts)
 
     def handle_new_player(self, client, player_name):
-        with lock:
-            if player_name not in players:
-                players[player_name] = {}
+        with self.lock:
+            if player_name not in self.players:
+                self.players[player_name] = {}
                 print(f"Adding new player: {player_name.decode()}")
                 client.send(player_name + b" added to server.")
             else:
                 client.send(player_name + b" already added to server.")
 
     def handle_position_query(self, client, player_name, target_name):
-        with lock:
-            target_data = players.get(player_name, {}).get(target_name, b"none|")
+        with self.lock:
+            target_data = self.players.get(player_name, {}).get(target_name, b"none|")
         if target_data == b"none|":
             client.send(target_data)
         else:
             client.send(player_name + b"," + target_name + b"," + target_data)
 
     def handle_position_update(self, client, data):
-        player_name, target_name = data[0], data[1]
+        player_name = data[0]
+        target_name = data[1]
         position_data = b",".join(data[2:])
-        with lock:
-            if player_name not in players:
-                players[player_name] = {}
-            players[player_name][target_name] = position_data
+        with self.lock:
+            if player_name not in self.players:
+                self.players[player_name] = {}
+            self.players[player_name][target_name] = position_data
         client.send(b"Target data recorded|")
 
     def handle_disconnect(self, client):

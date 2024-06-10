@@ -695,15 +695,31 @@ namespace vamrobotics
 			bytesLeft -= bytesSent;
 		    }
 
-		    byte[] responseBytes = new byte[65535];
-		    int bytesReceived = client.Receive(responseBytes, 0, responseBytes.Length, SocketFlags.None);
+		    StringBuilder responseBuilder = new StringBuilder();
+		    byte[] responseBytes = new byte[65535]; // Buffer for receiving data
+		    int bytesReceived = 0;
 
-		    return Encoding.UTF8.GetString(responseBytes, 0, bytesReceived);
+		    string responseStr = ""
+		    while (true)
+		    {
+			bytesReceived = client.Receive(responseBytes, 0, responseBytes.Length, SocketFlags.None);
+			responseBuilder.Append(Encoding.UTF8.GetString(responseBytes, 0, bytesReceived));
+
+			// Check if the message contains the terminating "|"
+			responseStr = responseBuilder.ToString()
+			if (responseStr.Contains("|"))
+			{
+			    break;
+			}
+		    }
+
+		    // Convert the accumulated response to a string and trim any excess data after "|"
+		    int endIndex = responseStr.LastIndexOf("|") + 1;
+		    return responseStr.Substring(0, endIndex);
 		}
 		else
 		{
 		    SuperController.LogError("Tried to send but not connected to any server.");
-
 		    return "Not Connected.";
 		}
 	    }

@@ -260,45 +260,49 @@ namespace vamrobotics
 
 		    // Prepare batched message for sending updates
 		    StringBuilder batchedMessage = new StringBuilder(playerChooser.val + ";");
+		    string initialMessage = batchedMessage.ToString();
 
 		    // Collecting updates to send
 		    Atom playerAtom = SuperController.singleton.GetAtomByUid(playerChooser.val);
 
 		    // Find correct player in the List
 		    int playerIndex = players.FindIndex(p => p.playerName == playerChooser.val);
-		    Player player = players[playerIndex];
-
-		    // Update only changed target positions and rotations for the main player
-		    foreach (Player.TargetData target in player.playerTargets)
+		    if (playerIndex != -1 && client != null)
 		    {
-			if (CheckIfTargetIsUpdateable(target.targetName))
-			{
-			    FreeControllerV3 targetObject = playerAtom.GetStorableByID(target.targetName) as FreeControllerV3;
+			    Player player = players[playerIndex];
 
-			    if (targetObject != null)
+			    // Update only changed target positions and rotations for the main player
+			    foreach (Player.TargetData target in player.playerTargets)
 			    {
-				if (targetObject.transform.position != target.positionOld || targetObject.transform.rotation != target.rotationOld)
+				if (CheckIfTargetIsUpdateable(target.targetName))
 				{
-				    // Append main player's target position and rotation data to the batched message
-				    batchedMessage.Append($"{target.targetName},{targetObject.transform.position.x},{targetObject.transform.position.y},{targetObject.transform.position.z},{targetObject.transform.rotation.w},{targetObject.transform.rotation.x},{targetObject.transform.rotation.y},{targetObject.transform.rotation.z};");
+				    FreeControllerV3 targetObject = playerAtom.GetStorableByID(target.targetName) as FreeControllerV3;
 
-				    // Update the 'Old' position and rotation data
-				    if (positionsBool.val)
+				    if (targetObject != null)
 				    {
-					target.positionOld = targetObject.transform.position;
-				    }
+					if (targetObject.transform.position != target.positionOld || targetObject.transform.rotation != target.rotationOld)
+					{
+					    // Append main player's target position and rotation data to the batched message
+					    batchedMessage.Append($"{target.targetName},{targetObject.transform.position.x},{targetObject.transform.position.y},{targetObject.transform.position.z},{targetObject.transform.rotation.w},{targetObject.transform.rotation.x},{targetObject.transform.rotation.y},{targetObject.transform.rotation.z};");
 
-				    if (rotationsBool.val)
-				    {
-					target.rotationOld = targetObject.transform.rotation;
+					    // Update the 'Old' position and rotation data
+					    if (positionsBool.val)
+					    {
+						target.positionOld = targetObject.transform.position;
+					    }
+
+					    if (rotationsBool.val)
+					    {
+						target.rotationOld = targetObject.transform.rotation;
+					    }
+					}
 				    }
 				}
 			    }
-			}
 		    }
 
 		    // Send the batched message if there are updates
-		    if (batchedMessage.Length > 0 && client != null)
+		    if (batchedMessage.Length > 0 && batchedMessage != initialMessage && client != null)
 		    {
 			string response = SendToServer(batchedMessage.ToString() + "|");
 			// Parse the batched response
@@ -623,31 +627,6 @@ namespace vamrobotics
                 diagnosticsTextField.text += "Connected to server: " + serverChooser.val + ":" + portChooser.val + "\n";
 
                 SuperController.LogMessage("Connected to server: " + serverChooser.val + ":" + portChooser.val);
-
-                // Send initial player data to the server
-                foreach (string playerName in playerList)
-                {
-                    string response = SendToServer(playerName + "|");
-
-                    SuperController.LogMessage(response);
-
-                    Atom playerAtom = SuperController.singleton.GetAtomByUid(playerName);
-
-                    // Find correct player in the List
-                    int playerIndex = players.FindIndex(p => p.playerName == playerName);
-                    Player player = players[playerIndex];
-
-                    // Update only changed target positions and rotations for the main player
-                    foreach (Player.TargetData target in player.playerTargets)
-                    {
-                        FreeControllerV3 targetObject = playerAtom.GetStorableByID(target.targetName) as FreeControllerV3;
-
-                        // Send main player's target position and rotation data to the server to be recorded
-                        response = SendToServer(playerName + "," + target.targetName + "," + target.position.x.ToString() + "," + target.position.y.ToString() + "," + target.position.z.ToString() + "," + target.rotation.w.ToString() + "," + target.rotation.x.ToString() + "," + target.rotation.y.ToString() + "," + target.rotation.z.ToString() + "|");
-
-                        SuperController.LogMessage(response);
-                    }
-                }
             }
             catch (Exception e)
             {

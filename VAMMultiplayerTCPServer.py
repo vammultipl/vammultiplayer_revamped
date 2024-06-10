@@ -40,34 +40,44 @@ class VAMMultiplayerServer:
 
     def handle_request(self, client, request):
         parts = request.split(b";")
-        if len(parts) == 1:
-            self.handle_new_player(client, parts[0])
-        else:
+        if len(parts) > 2: #assume more than one joint status is sent
+#            self.handle_new_player(client, parts[0])
+#        else:
             player_name = parts[0]
             updates = parts[1:]
             self.handle_batch_update(client, player_name, updates)
+        else:
+            print(f"Error: got malformed input (less than 2 parts)")
 
-    def handle_new_player(self, client, player_name):
-        with self.lock:
-            if player_name not in self.players:
-                self.players[player_name] = {}
-                print(f"Adding new player: {player_name.decode()}")
-                client.send(player_name + b" added to server.")
-            else:
-                client.send(player_name + b" already added to server.")
+#    def handle_new_player(self, client, player_name):
+#        with self.lock:
+#            if player_name not in self.players:
+#                self.players[player_name] = {}
+#                print(f"Adding new player: {player_name.decode()}")
+#                client.send(player_name + b" added to server.")
+#            else:
+#                client.send(player_name + b" already added to server.")
 
     def handle_batch_update(self, client, player_name, updates):
         with self.lock:
+            # Ensure player exists
+            if player_name not in self.players:
+                if len(self.players) > 4:
+                    print(f"Error: already more than 4 players when trying to add Player with name: {player_name.decode()}")
+                    return
+                print(f"Adding new player: {player_name.decode()}")
+                self.players[player_name] = {}
             # Update positions and rotations for the player
             for update in updates:
-                data = update.split(b",")
-                if len(data) == 8:
+                data = update.split(b",", 1)
+                if len(data) == 2:
                     target_name = data[0]
-                    position_data = b",".join(data[1:])
-                    if player_name not in self.players:
-                        print(f"Adding new player: {player_name.decode()}")
-                        self.players[player_name] = {}
+                    position_data = data[1]
+                    if position_data.count(',') != 6:
+                        print(f"Error: got malformed position_data: {position_data}")
                     self.players[player_name][target_name] = position_data
+                else:
+                    print(f"Error: got malformed input")
 
             # Prepare response with all other players' joint data
             response = []
@@ -77,12 +87,13 @@ class VAMMultiplayerServer:
                         response.append(other_player + b"," + target_name + b"," + pos_rot_data)
 
         if response:
-            client.send(b";".join(response) + b"|")
+            client.sendall(b";".join(response) + b"|")
         else:
-            client.send(b"none|")
+            client.sendall(b"none|")
 
     def handle_disconnect(self, client):
         # Logic to handle player disconnects can be added here
+        print("Client disconnected")
         pass
 
 def main():

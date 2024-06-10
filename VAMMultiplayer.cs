@@ -115,6 +115,7 @@ namespace vamrobotics
                 updateFrequencies.Add("40.0");
                 updateFrequencies.Add("50.0");
                 updateFrequencies.Add("60.0");
+                updateFrequencies.Add("500.0");
                 updateFrequencyChooser = new JSONStorableStringChooser("Update Frequency Chooser", updateFrequencies, updateFrequencies[2], "Update Frequency", UpdateFrequencyChooserCallback);
                 RegisterStringChooser(updateFrequencyChooser);
                 CreatePopup(updateFrequencyChooser);
@@ -259,104 +260,119 @@ namespace vamrobotics
                 {
                     sw.Stop();
 
-		    // Prepare batched message for sending updates
-		    StringBuilder batchedMessage = new StringBuilder(playerChooser.val + ";");
-		    string initialMessage = batchedMessage.ToString();
+				// Prepare batched message for sending updates
+				StringBuilder batchedMessage = new StringBuilder(playerChooser.val + ";");
+				string initialMessage = batchedMessage.ToString();
 
-		    // Collecting updates to send
-		    Atom playerAtom = SuperController.singleton.GetAtomByUid(playerChooser.val);
+				// Collecting updates to send
+				Atom playerAtom = SuperController.singleton.GetAtomByUid(playerChooser.val);
 
-		    // Find correct player in the List
-		    int playerIndex = players.FindIndex(p => p.playerName == playerChooser.val);
-		    if (playerIndex != -1 && client != null)
-		    {
-			    Player player = players[playerIndex];
-
-			    // Update only changed target positions and rotations for the main player
-			    foreach (Player.TargetData target in player.playerTargets)
-			    {
-				if (CheckIfTargetIsUpdateable(target.targetName))
+				// Find correct player in the List
+				int playerIndex = players.FindIndex(p => p.playerName == playerChooser.val);
+				if (playerIndex != -1 && client != null)
 				{
-				    FreeControllerV3 targetObject = playerAtom.GetStorableByID(target.targetName) as FreeControllerV3;
+					Player player = players[playerIndex];
 
-				    if (targetObject != null)
-				    {
-					if (targetObject.transform.position != target.positionOld || targetObject.transform.rotation != target.rotationOld)
+					// Update only changed target positions and rotations for the main player
+					foreach (Player.TargetData target in player.playerTargets)
 					{
-					    // Append main player's target position and rotation data to the batched message
-					    batchedMessage.Append($"{target.targetName},{targetObject.transform.position.x},{targetObject.transform.position.y},{targetObject.transform.position.z},{targetObject.transform.rotation.w},{targetObject.transform.rotation.x},{targetObject.transform.rotation.y},{targetObject.transform.rotation.z};");
+						if (CheckIfTargetIsUpdateable(target.targetName))
+						{
+							FreeControllerV3 targetObject = playerAtom.GetStorableByID(target.targetName) as FreeControllerV3;
 
-					    // Update the 'Old' position and rotation data
-					    if (positionsBool.val)
-					    {
-						target.positionOld = targetObject.transform.position;
-					    }
+							if (targetObject != null)
+							{
+							//if (targetObject.transform.position != target.positionOld || targetObject.transform.rotation != target.rotationOld)
+							{
+								// Append main player's target position and rotation data to the batched message
+								batchedMessage.Append($"{target.targetName},{targetObject.transform.position.x},{targetObject.transform.position.y},{targetObject.transform.position.z},{targetObject.transform.rotation.w},{targetObject.transform.rotation.x},{targetObject.transform.rotation.y},{targetObject.transform.rotation.z};");
 
-					    if (rotationsBool.val)
-					    {
-						target.rotationOld = targetObject.transform.rotation;
-					    }
+								// Update the 'Old' position and rotation data
+								if (positionsBool.val)
+								{
+								target.positionOld = targetObject.transform.position;
+								}
+
+								if (rotationsBool.val)
+								{
+								target.rotationOld = targetObject.transform.rotation;
+								}
+							} 
+							} else {
+								;//SuperController.LogError("TARGETOBJECT NULL 302");
+							}
+						}
 					}
-				    }
-				}
-			    }
-		    }
-
-		    // Send the batched message if there are updates
-		    if (batchedMessage.Length > 0 && batchedMessage.ToString() != initialMessage && client != null)
-		    {
-			string response = SendToServer(batchedMessage.ToString() + "|");
-			// Parse the batched response
-			string[] responses = response.Split(';');
-			foreach (string res in responses)
-			{
-			    if (!string.IsNullOrEmpty(res) && res != "none|")
-			    {
-				// Truncate trailing "|" if there is one
-				string trimmedRes = res.TrimEnd('|');
-				string[] targetData = trimmedRes.Split(',');
-
-				if (targetData.Length == 9)
+				} else
 				{
-				    // Make sure we have that player first
-				    int playerIdx = players.FindIndex(p => p.playerName == targetData[0]);
-				    if (playerIdx != -1)
-			            {
-					    Atom otherPlayerAtom = SuperController.singleton.GetAtomByUid(targetData[0]);
-					    FreeControllerV3 targetObject = otherPlayerAtom.GetStorableByID(targetData[1]) as FreeControllerV3;
-
-					    if (targetObject != null)
-					    {
-						if (positionsBool.val)
-						{
-						    Vector3 tempPosition = targetObject.transform.position;
-						    tempPosition.x = float.Parse(targetData[2]);
-						    tempPosition.y = float.Parse(targetData[3]);
-						    tempPosition.z = float.Parse(targetData[4]);
-
-						    targetObject.transform.position = tempPosition;
-						}
-
-						if (rotationsBool.val)
-						{
-						    Quaternion tempRotation = targetObject.transform.rotation;
-						    tempRotation.w = float.Parse(targetData[5]);
-						    tempRotation.x = float.Parse(targetData[6]);
-						    tempRotation.y = float.Parse(targetData[7]);
-						    tempRotation.z = float.Parse(targetData[8]);
-
-						    targetObject.transform.rotation = tempRotation;
-						}
-					    }
-				    }
+					;//SuperController.LogError("PLAYER NOT FOUND");
 				}
-				else
+
+				// Send the batched message if there are updates
+				if (batchedMessage.Length > 0 && batchedMessage.ToString() != initialMessage && client != null)
 				{
-				    SuperController.LogError("Malformed server response: " + res);
+					string response = SendToServer(batchedMessage.ToString() + "|");
+								;//SuperController.LogError("MESSAGE SENT");
+					;//SuperController.LogError("Response " + response);
+					// Parse the batched response
+					string[] responses = response.Split(';');
+					foreach (string res in responses)
+					{
+						if (!string.IsNullOrEmpty(res) && res != "none|")
+						{
+							// Truncate trailing "|" if there is one
+							string trimmedRes = res.TrimEnd('|');
+							string[] targetData = trimmedRes.Split(',');
+
+							if (targetData.Length == 9)
+							{
+								// Make sure we have that player first
+								int playerIdx = players.FindIndex(p => p.playerName == targetData[0]);
+								if (playerIdx != -1)
+								{
+									Atom otherPlayerAtom = SuperController.singleton.GetAtomByUid(targetData[0]);
+									FreeControllerV3 targetObject = otherPlayerAtom.GetStorableByID(targetData[1]) as FreeControllerV3;
+
+									if (targetObject != null)
+									{
+										if (positionsBool.val)
+										{
+											Vector3 tempPosition = targetObject.transform.position;
+											tempPosition.x = float.Parse(targetData[2]);
+											tempPosition.y = float.Parse(targetData[3]);
+											tempPosition.z = float.Parse(targetData[4]);
+
+											targetObject.transform.position = tempPosition;
+										}
+
+										if (rotationsBool.val)
+										{
+											Quaternion tempRotation = targetObject.transform.rotation;
+											tempRotation.w = float.Parse(targetData[5]);
+											tempRotation.x = float.Parse(targetData[6]);
+											tempRotation.y = float.Parse(targetData[7]);
+											tempRotation.z = float.Parse(targetData[8]);
+
+											targetObject.transform.rotation = tempRotation;
+										}
+									}
+									else {
+										;//SuperController.LogError("TARGET OBJECT NULL");
+									}
+								}
+								else {
+									;//SuperController.LogError("PLAYER NOT FOUND AGAIN" + targetData[0]);
+								}
+							}
+							else
+							{
+								;//SuperController.LogError("Malformed server response: " + res);
+							}
+						} else {
+								;//SuperController.LogError("NONE RESPONSE");
+						}
+					}
 				}
-			    }
-			}
-		    }
 
 		    sw = Stopwatch.StartNew();
 		}

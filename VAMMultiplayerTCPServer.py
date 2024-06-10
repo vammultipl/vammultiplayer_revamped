@@ -73,10 +73,10 @@ class VAMMultiplayerServer:
             for other_player, targets in self.players.items():
                 if other_player != player_name:
                     for target_name, pos_rot_data in targets.items():
-                        response.append(f"{other_player},{target_name},{pos_rot_data.decode()}")
+                        response.append(other_player + b"," + target_name + b"," + pos_rot_data)
 
         if response:
-            client.send(";".join(response).encode() + b"|")
+            client.send(b";".join(response) + b"|")
         else:
             client.send(b"none|")
 

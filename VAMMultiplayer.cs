@@ -302,7 +302,7 @@ namespace vamrobotics
 		    }
 
 		    // Send the batched message if there are updates
-		    if (batchedMessage.Length > 0 && batchedMessage != initialMessage && client != null)
+		    if (batchedMessage.Length > 0 && batchedMessage.ToString() != initialMessage && client != null)
 		    {
 			string response = SendToServer(batchedMessage.ToString() + "|");
 			// Parse the batched response

@@ -91,15 +91,13 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 				s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("Your IP address %s has been successfully registered/refreshed. You can now connect to the game.", ip))
 			} else {
 				fmt.Println("Register: invalid IP: ", parts[1])
+				s.ChannelMessageSend(m.ChannelID, "Invalid IP address format. Please use /register 123.45.67.89")
 			}
 		} else {
 			fmt.Println("Invalid command: ", m.Content)
 			s.ChannelMessageSend(m.ChannelID, "Invalid command or IP address format. Please use /register 123.45.67.89")
 		}
-	}
-
-	// Check if the message is "/query"
-	if strings.HasPrefix(m.Content, "/state") {
+	} else if strings.HasPrefix(m.Content, "/state") {
 		gameStatus, err := getCurrentGameStatus("current_players.txt")
 		if err != nil {
 			fmt.Println("Error reading game status: ", err)
@@ -107,6 +105,14 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 			return
 		}
 		s.ChannelMessageSend(m.ChannelID, gameStatus)
+	} else {
+		// Respond with detailed usage info for any other message
+		url := "https://www.google.com/search?q=google+what+is+my+ip"
+		text := fmt.Sprintf("Unknown command. Here are the commands you can use:\n\n" +
+		"1. `/register <IP>` - Register your IP address with the VaM multiplayer server. This will gain you entry to the server with about 2 weeks expiration. If you cannot connect to the server in VaM, register again. To find your IP, visit the link below. Link:\n%s\n\n" +
+		    "2. `/state` - Check the current game status to see who is playing.\n\n" +
+		    "Please use one of the above commands.\n", url)
+		s.ChannelMessageSend(m.ChannelID, text)
 	}
 }
 

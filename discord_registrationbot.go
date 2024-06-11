@@ -18,7 +18,7 @@ import (
 var (
 	token          string
 	filePath       = "allowlist.txt" // user IP allowlist
-	expirationTime = time.Hour
+	expirationTime = 24 * 14 * time.Hour // 2 weeks expiration
 	mutex          sync.Mutex // Mutex to protect access to the allowlist file
 )
 
@@ -106,7 +106,7 @@ func isValidIP(ip string) bool {
 }
 
 func startCleanupTimer() {
-	ticker := time.NewTicker(10 * time.Minute) // Adjust the cleanup interval as needed
+	ticker := time.NewTicker(6 * time.Hour)
 	for {
 		select {
 		case <-ticker.C:

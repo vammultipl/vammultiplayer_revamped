@@ -324,7 +324,7 @@ namespace vamrobotics
 								// TODO: if value < 0.00001, round down to 0 to save space
 								
 								// Optimize transfer - use shortened targetname
-								string shortTargetName = ""
+								string shortTargetName = "";
 								try
 								{
 								    shortTargetName = TargetLongToShortName(target.targetName);
@@ -387,7 +387,7 @@ namespace vamrobotics
 									{
 										Atom otherPlayerAtom = SuperController.singleton.GetAtomByUid(targetData[0]);
 										// restore original target name
-										string longTargetName = ""
+										string longTargetName = "";
 										try
 										{
 										    longTargetName = TargetShortToLongName(targetData[1]);

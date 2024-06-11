@@ -16,10 +16,11 @@ class VAMMultiplayerServer:
         self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self.sock.bind((self.host, self.port))
         self.players = {}
+        self.users = {}
         self.lock = threading.Lock()
 
     def listen(self):
-        self.sock.listen(2)  # Only expecting two players.
+        self.sock.listen(3)  # Only expecting up to three players.
         while True:
             client, address = self.sock.accept()
             print(f"New connection from {address[0]}")
@@ -33,14 +34,14 @@ class VAMMultiplayerServer:
                 if not request:
                     break
                 if request.endswith(b"|"):
-                    self.handle_request(client, request[:-1])
+                    self.handle_request(client, request[:-1], address)
         except Exception as e:
             print(f"Error from {address[0]}: {e}")
         finally:
             self.handle_disconnect(client, address)
             client.close()
 
-    def handle_request(self, client, request):
+    def handle_request(self, client, request, address):
         parts = request.split(b";")
         if len(parts) > 2: #assume more than one joint status is sent
 #            self.handle_new_player(client, parts[0])
@@ -48,6 +49,12 @@ class VAMMultiplayerServer:
             player_name = parts[0]
             updates = parts[1:]
             self.handle_batch_update(client, player_name, updates)
+
+            # Log IP and player_name changes
+            with self.lock:
+                if address[0] not in self.users or self.users[address[0]] != player_name:
+                    self.users[address[0]] = player_name
+                    print(f"{address[0]} now controls player {player_name.decode()}")
         else:
             print(f"Error: got malformed input (less than 2 parts)")
 
@@ -94,7 +101,10 @@ class VAMMultiplayerServer:
     def handle_disconnect(self, client, address):
         # Log disconnect details
         print(f"Client disconnected from {address[0]}")
-        pass
+        with self.lock:
+            if address[0] in self.users:
+                print(f"Client {address[0]} stopped controlling {self.users[address[0]].decode()}")
+                del self.users[address[0]]
 
 def main():
     host = "0.0.0.0"

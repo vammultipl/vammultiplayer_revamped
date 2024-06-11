@@ -67,6 +67,22 @@ namespace vamrobotics
         private List<Player> players;
         private Stopwatch sw = Stopwatch.StartNew();
 
+	    private static string[] shortTargetNames = new string[] {
+        "c", "Hc", "pc", "cc", "hc", "rh", "lh", "rf", "lf", "nc", "et", "rn", "ln",
+        "tc", "pb", "pm", "pt", "re", "le", "rk", "lk", "Rt", "Lt", "ac", "a2",
+        "rt", "lt", "ra", "la", "rs", "ls"
+	    };
+
+	    private static string[] longTargetNames = new string[] {
+		"control", "hipControl", "pelvisControl", "chestControl", "headControl",
+		"rHandControl", "lHandControl", "rFootControl", "lFootControl", "neckControl",
+		"eyeTargetControl", "rNippleControl", "lNippleControl", "testesControl",
+		"penisBaseControl", "penisMidControl", "penisTipControl", "rElbowControl",
+		"lElbowControl", "rKneeControl", "lKneeControl", "rToeControl", "lToeControl",
+		"abdomenControl", "abdomen2Control", "rThighControl", "lThighControl",
+		"rArmControl", "lArmControl", "rShoulderControl", "lShoulderControl"
+	    };
+
         public override void Init()
         {
             try
@@ -248,6 +264,25 @@ namespace vamrobotics
             }
         }
 
+	    public static string TargetShortToLongName(string shortName)
+	    {
+		int index = Array.IndexOf(shortTargetNames, shortName);
+		if (index == -1)
+		{
+		    throw new ArgumentException("Short name does not exist.");
+		}
+		return longTargetNames[index];
+	    }
+
+	    public static string TargetLongToShortName(string longName)
+	    {
+		int index = Array.IndexOf(longTargetNames, longName);
+		if (index == -1)
+		{
+		    throw new ArgumentException("Long name does not exist.");
+		}
+		return shortTargetNames[index];
+	    }
         protected void FixedUpdate()
         {
             try
@@ -287,7 +322,18 @@ namespace vamrobotics
 							{
 								// Append main player's target position and rotation data to the batched message
 								// TODO: if value < 0.00001, round down to 0 to save space
-								batchedMessage.Append($"{target.targetName},{targetObject.transform.position.x},{targetObject.transform.position.y},{targetObject.transform.position.z},{targetObject.transform.rotation.w},{targetObject.transform.rotation.x},{targetObject.transform.rotation.y},{targetObject.transform.rotation.z};");
+								
+								// Optimize transfer - use shortened targetname
+								string shortTargetName = ""
+								try
+								{
+								    shortTargetName = TargetLongToShortName(target.targetName);
+								}
+								catch (Exception ex)
+								{
+								    SuperController.LogError("Exception caught: " + ex.Message);
+								}
+								batchedMessage.Append($"{shortTargetName},{targetObject.transform.position.x},{targetObject.transform.position.y},{targetObject.transform.position.z},{targetObject.transform.rotation.w},{targetObject.transform.rotation.x},{targetObject.transform.rotation.y},{targetObject.transform.rotation.z};");
 
 								// Update the 'Old' position and rotation data
 								if (positionsBool.val)
@@ -340,7 +386,17 @@ namespace vamrobotics
 									if (playerIdx != -1)
 									{
 										Atom otherPlayerAtom = SuperController.singleton.GetAtomByUid(targetData[0]);
-										FreeControllerV3 targetObject = otherPlayerAtom.GetStorableByID(targetData[1]) as FreeControllerV3;
+										// restore original target name
+										string longTargetName = ""
+										try
+										{
+										    longTargetName = TargetShortToLongName(targetData[1]);
+										}
+										catch (Exception ex)
+										{
+										    SuperController.LogError("Exception caught: " + ex.Message);
+										}
+										FreeControllerV3 targetObject = otherPlayerAtom.GetStorableByID(longTargetName) as FreeControllerV3;
 
 										if (targetObject != null)
 										{

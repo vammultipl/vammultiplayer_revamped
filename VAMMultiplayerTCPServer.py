@@ -6,6 +6,7 @@
 
 import socket
 import threading
+import sys
 
 class VAMMultiplayerServer:
     def __init__(self, host, port):
@@ -21,10 +22,11 @@ class VAMMultiplayerServer:
         self.sock.listen(2)  # Only expecting two players.
         while True:
             client, address = self.sock.accept()
+            print(f"New connection from {address[0]}")
             client.settimeout(90)
-            threading.Thread(target=self.client_connection, args=(client,)).start()
+            threading.Thread(target=self.client_connection, args=(client, address)).start()
 
-    def client_connection(self, client):
+    def client_connection(self, client, address):
         try:
             while True:
                 request = client.recv(65535)
@@ -33,9 +35,9 @@ class VAMMultiplayerServer:
                 if request.endswith(b"|"):
                     self.handle_request(client, request[:-1])
         except Exception as e:
-            print(f"Error: {e}")
+            print(f"Error from {address[0]}: {e}")
         finally:
-            self.handle_disconnect(client)
+            self.handle_disconnect(client, address)
             client.close()
 
     def handle_request(self, client, request):
@@ -89,14 +91,22 @@ class VAMMultiplayerServer:
         else:
             client.sendall(b"none|")
 
-    def handle_disconnect(self, client):
-        # Logic to handle player disconnects can be added here
-        print("Client disconnected")
+    def handle_disconnect(self, client, address):
+        # Log disconnect details
+        print(f"Client disconnected from {address[0]}")
         pass
 
 def main():
     host = "0.0.0.0"
-    port = 8888
+    port = 8888  # Default port
+
+    # Check for command line arguments for port
+    if len(sys.argv) > 1:
+        try:
+            port = int(sys.argv[1])
+        except ValueError:
+            print("Invalid port number. Using default port 8888.")
+
     print("VAM Multiplayer Server running:")
     print(f"IP: {host}")
     print(f"Port: {port}")
@@ -104,4 +114,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

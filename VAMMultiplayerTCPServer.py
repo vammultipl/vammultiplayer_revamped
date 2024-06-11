@@ -7,6 +7,7 @@
 import socket
 import threading
 import sys
+import time
 
 class VAMMultiplayerServer:
     def __init__(self, host, port):
@@ -55,6 +56,7 @@ class VAMMultiplayerServer:
                 if address[0] not in self.users or self.users[address[0]] != player_name:
                     self.users[address[0]] = player_name
                     print(f"{address[0]} now controls player {player_name.decode()}")
+                    self.on_user_change()
         else:
             print(f"Error: got malformed input (less than 2 parts)")
 
@@ -105,6 +107,13 @@ class VAMMultiplayerServer:
             if address[0] in self.users:
                 print(f"Client {address[0]} stopped controlling {self.users[address[0]].decode()}")
                 del self.users[address[0]]
+                self.on_user_change()
+
+    def on_user_change(self):
+        with open('current_players.txt', 'a') as f:
+            timestamp = int(time.time())
+            state = ",".join(f"{ip}:{player_name.decode()}" for ip, player_name in self.users.items())
+            f.write(f"{timestamp};{state}\n")
 
 def main():
     host = "0.0.0.0"

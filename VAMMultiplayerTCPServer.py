@@ -26,7 +26,7 @@ class VAMMultiplayerServer:
         self.sock.listen(3)  # Only expecting up to three players.
         while True:
             client, address = self.sock.accept()
-            print(f"New connection from {address[0]}")
+            print(f"New connection from {address[0]}:{address[1]}")
             client.settimeout(90)
             threading.Thread(target=self.client_connection, args=(client, address)).start()
 
@@ -39,7 +39,7 @@ class VAMMultiplayerServer:
                 if request.endswith(b"|"):
                     self.handle_request(client, request[:-1], address)
         except Exception as e:
-            print(f"Error from {address[0]}: {e}")
+            print(f"Error from {address[0]}:{address[1]} :{e}")
         finally:
             self.handle_disconnect(client, address)
             client.close()
@@ -55,9 +55,10 @@ class VAMMultiplayerServer:
 
             # Log IP and player_name changes
             with self.lock:
-                if address[0] not in self.users or self.users[address[0]] != player_name:
-                    self.users[address[0]] = player_name
-                    print(f"{address[0]} now controls player {player_name.decode()}")
+                key = f"{address}:{port}"
+                if key not in self.users or self.users[key] != player_name:
+                    self.users[key] = player_name
+                    print(f"{key} now controls player {player_name.decode()}")
                     self.on_user_change()
         else:
             print(f"Error: got malformed input (less than 2 parts)")
@@ -104,20 +105,21 @@ class VAMMultiplayerServer:
 
     def handle_disconnect(self, client, address):
         # Log disconnect details
-        print(f"Client disconnected from {address[0]}")
+        key = f"{address}:{port}"
+        print(f"Client disconnected from {key}")
         with self.lock:
-            if address[0] in self.users:
-                print(f"Client {address[0]} stopped controlling {self.users[address[0]].decode()}")
-                player_name = self.users[address[0]]
+            if key in self.users:
+                print(f"Client {key} stopped controlling {self.users[key].decode()}")
+                player_name = self.users[key]
                 if player_name in self.players:
                     del self.players[player_name]
-                del self.users[address[0]]
+                del self.users[key]
                 self.on_user_change()
 
     def on_user_change(self):
         with open('current_players.txt', 'a') as f:
             timestamp = int(time.time())
-            state = ",".join(f"{ip}:{player_name.decode()}" for ip, player_name in self.users.items())
+            state = ",".join(f"{ip_port}:{player_name.decode()}" for ip_port, player_name in self.users.items())
             f.write(f"{timestamp};{state}\n")
 
 def main():

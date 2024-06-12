@@ -108,6 +108,9 @@ class VAMMultiplayerServer:
         with self.lock:
             if address[0] in self.users:
                 print(f"Client {address[0]} stopped controlling {self.users[address[0]].decode()}")
+                player_name = self.users[address[0]]
+                if player_name in self.players:
+                    del self.players[player_name]
                 del self.users[address[0]]
                 self.on_user_change()
 

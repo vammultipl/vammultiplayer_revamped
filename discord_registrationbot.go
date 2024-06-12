@@ -20,6 +20,7 @@ var (
 	filePath       = "allowlist.txt" // user IP allowlist
 	expirationTime = 24 * 14 * time.Hour // 2 weeks expiration
 	mutex          sync.Mutex // Mutex to protect access to the allowlist file
+	prevPlayerStatus string = ""
 )
 
 func main() {
@@ -62,6 +63,8 @@ func main() {
 
 	// Start the periodic cleanup in a separate goroutine
 	go startCleanupTimer()
+	// Goroutine to poll for player state changes and update status
+	go startPlayerStateMonitor(dg)
 
 	fmt.Println("Bot is now running. Press CTRL+C to exit.")
 	// Wait here until CTRL+C or other term signal is received.
@@ -179,6 +182,29 @@ func startCleanupTimer() {
 		select {
 		case <-ticker.C:
 			cleanupExpiredIPs()
+		}
+	}
+}
+
+func startPlayerStateMonitor(s *discordgo.Session) {
+	ticker := time.NewTicker(30 * time.Second)
+	for {
+		select {
+		case <-ticker.C:
+			updatePlayerStatus(s)
+		}
+	}
+}
+
+func updatePlayerStatus(s *discordgo.Session) {
+	gameStatus, err := getCurrentGameStatus("current_players.txt")
+	if err == nil {
+		if gameStatus != prevPlayerStatus {
+			err := s.UpdateCustomStatus(gameStatus)
+			if err != nil {
+				fmt.Println("error updating custom status", err)
+			}
+			prevPlayerStatus = gameStatus
 		}
 	}
 }

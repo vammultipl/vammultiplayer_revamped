@@ -710,6 +710,8 @@ namespace vamrobotics
                 if (protocolChooser.val == "TCP")
                 {
                     client = new Socket(ipAddress.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
+		    // Set the TCP_NODELAY flag to disable the Nagle Algorithm
+		    client.SetSocketOption(SocketOptionLevel.Tcp, SocketOptionName.NoDelay, true);
 
                     // client.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.KeepAlive, true);
 

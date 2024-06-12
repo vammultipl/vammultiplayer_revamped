@@ -64,6 +64,7 @@ namespace vamrobotics
         protected JSONStorableString diagnostics;
         protected UIDynamicTextField diagnosticsTextField;
         private List<string> playerList;
+        private List<string> onlinePlayers;
         private List<Player> players;
         private Stopwatch sw = Stopwatch.StartNew();
 
@@ -92,6 +93,7 @@ namespace vamrobotics
                 // Find all 'Person' Atoms currently in the scene
                 Atom tempAtom;
                 playerList = new List<string>();
+                onlinePlayers = new List<string>();
                 players = new List<Player>();
                 foreach (string atomUID in SuperController.singleton.GetAtomUIDs())
                 {
@@ -176,6 +178,7 @@ namespace vamrobotics
                 // Setup a text field for diagnostics
                 diagnostics = new JSONStorableString("Diagnostics", "Diagnostics:\n");
                 diagnosticsTextField = CreateTextField(diagnostics, true);
+		diagnosticsTextField.height = 600f;
 
                 // Setup positions and rotations bools
                 positionsBool = new JSONStorableBool("Update Positions", true);
@@ -371,6 +374,7 @@ namespace vamrobotics
 						;//SuperController.LogError("Response " + response);
 						// Parse the batched response
 						string[] responses = response.Split(';');
+						List<string> latestOnlinePlayers = new List<string>();
 						foreach (string res in responses)
 						{
 							if (!string.IsNullOrEmpty(res) && res != "none|")
@@ -385,6 +389,13 @@ namespace vamrobotics
 									int playerIdx = players.FindIndex(p => p.playerName == targetData[0]);
 									if (playerIdx != -1)
 									{
+										// Update list of active players if needed
+										// Display in diag window if there is any new player
+										latestOnlinePlayers.Add(targetData[0]);
+										if (!onlinePlayers.Contains(targetData[0]))
+										{
+											diagnosticsTextField.text += targetData[0] + " joined." + "\n";
+										}
 										Atom otherPlayerAtom = SuperController.singleton.GetAtomByUid(targetData[0]);
 										// restore original target name
 										string longTargetName = "";
@@ -437,6 +448,16 @@ namespace vamrobotics
 									;//SuperController.LogError("NONE RESPONSE");
 							}
 						}
+						// Check if anyone disconnected since last tick
+						foreach (string player in onlinePlayers)
+						{
+							if (!latestOnlinePlayers.Contains(player))
+							{
+								diagnosticsTextField.text += player + " disconnected." + "\n";
+							}
+						}
+						onlinePlayers.Clear();
+						onlinePlayers.AddRange(latestOnlinePlayers);
 					}
 					catch (SocketException ex)
 					{

@@ -55,7 +55,7 @@ class VAMMultiplayerServer:
 
             # Log IP and player_name changes
             with self.lock:
-                key = f"{address}:{port}"
+                key = f"{address[0]}:{address[1]}"
                 if key not in self.users or self.users[key] != player_name:
                     self.users[key] = player_name
                     print(f"{key} now controls player {player_name.decode()}")
@@ -105,7 +105,7 @@ class VAMMultiplayerServer:
 
     def handle_disconnect(self, client, address):
         # Log disconnect details
-        key = f"{address}:{port}"
+        key = f"{address[0]}:{address[1]}"
         print(f"Client disconnected from {key}")
         with self.lock:
             if key in self.users:

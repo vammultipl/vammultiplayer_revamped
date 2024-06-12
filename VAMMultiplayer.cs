@@ -391,7 +391,10 @@ namespace vamrobotics
 									{
 										// Update list of active players if needed
 										// Display in diag window if there is any new player
-										latestOnlinePlayers.Add(targetData[0]);
+										if (!latestOnlinePlayers.Contains(targetData[0]))
+										{
+											latestOnlinePlayers.Add(targetData[0]);
+										}
 										if (!onlinePlayers.Contains(targetData[0]))
 										{
 											onlinePlayers.Add(targetData[0]);

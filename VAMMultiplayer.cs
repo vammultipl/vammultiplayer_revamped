@@ -394,6 +394,7 @@ namespace vamrobotics
 										latestOnlinePlayers.Add(targetData[0]);
 										if (!onlinePlayers.Contains(targetData[0]))
 										{
+											onlinePlayers.Add(targetData[0]);
 											diagnosticsTextField.text += targetData[0] + " joined." + "\n";
 										}
 										Atom otherPlayerAtom = SuperController.singleton.GetAtomByUid(targetData[0]);

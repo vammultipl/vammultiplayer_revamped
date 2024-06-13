@@ -370,7 +370,7 @@ namespace vamrobotics
 				{
 					// message indicating spectator mode
 					// no data is sent in request, we just want the response with all the other players data
-					batchedMessage.Clear();
+					batchedMessage.Length = 0; // clear string
 					batchedMessage.Append("S");
 				}
 

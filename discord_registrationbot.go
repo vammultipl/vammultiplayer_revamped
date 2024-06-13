@@ -163,7 +163,10 @@ func getCurrentGameStatus(filePath string) (string, error) {
 	for _, info := range playerInfo {
 		playerParts := strings.Split(info, ":")
 		if len(playerParts) == 3 {
-			playerDetails += fmt.Sprintf("User IP: %s controls: %s\n", playerParts[0], playerParts[2])
+			if "SPECTATOR" in playerParts[2]:
+				playerDetails += fmt.Sprintf("User IP: %s is a SPECTATOR\n", playerParts[0])
+			else:
+				playerDetails += fmt.Sprintf("User IP: %s controls: %s\n", playerParts[0], playerParts[2])
 		}
 	}
 

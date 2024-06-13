@@ -24,6 +24,7 @@ namespace vamrobotics
         protected JSONStorableStringChooser portChooser;
         protected JSONStorableStringChooser protocolChooser;
         protected JSONStorableStringChooser updateFrequencyChooser;
+        protected JSONStorableBool spectatorModeBool;
         protected JSONStorableBool positionsBool;
         protected JSONStorableBool rotationsBool;
         protected JSONStorableBool controlBool;
@@ -167,6 +168,10 @@ namespace vamrobotics
                 RegisterStringChooser(protocolChooser);
                 CreatePopup(protocolChooser, true);
 
+		// Spectator mode toggle
+                spectatorModeBool = new JSONStorableBool("Spectator Mode", false);
+                CreateToggle(spectatorModeBool);
+
                 // Setup connect to server button
                 connectToServer = CreateButton("Connect to server", true);
                 connectToServer.button.onClick.AddListener(ConnectToServerCallback);
@@ -303,60 +308,70 @@ namespace vamrobotics
 				StringBuilder batchedMessage = new StringBuilder(playerChooser.val + ";");
 				string initialMessage = batchedMessage.ToString();
 
-				// Collecting updates to send
-				Atom playerAtom = SuperController.singleton.GetAtomByUid(playerChooser.val);
-
-				// Find correct player in the List
-				int playerIndex = players.FindIndex(p => p.playerName == playerChooser.val);
-				if (playerIndex != -1 && client != null)
+				// Prepare message with controlled players joints, unless spectator mode is on
+				if (!spectatorModeBool.val)
 				{
-					Player player = players[playerIndex];
+					// Collecting updates to send
+					Atom playerAtom = SuperController.singleton.GetAtomByUid(playerChooser.val);
 
-					// Update only changed target positions and rotations for the main player
-					foreach (Player.TargetData target in player.playerTargets)
+					// Find correct player in the List
+					int playerIndex = players.FindIndex(p => p.playerName == playerChooser.val);
+					if (playerIndex != -1 && client != null)
 					{
-						if (CheckIfTargetIsUpdateable(target.targetName))
+						Player player = players[playerIndex];
+
+						// Update only changed target positions and rotations for the main player
+						foreach (Player.TargetData target in player.playerTargets)
 						{
-							FreeControllerV3 targetObject = playerAtom.GetStorableByID(target.targetName) as FreeControllerV3;
-
-							if (targetObject != null)
+							if (CheckIfTargetIsUpdateable(target.targetName))
 							{
-							//if (targetObject.transform.position != target.positionOld || targetObject.transform.rotation != target.rotationOld)
-							{
-								// Append main player's target position and rotation data to the batched message
-								// TODO: if value < 0.00001, round down to 0 to save space
-								
-								// Optimize transfer - use shortened targetname
-								string shortTargetName = "";
-								try
-								{
-								    shortTargetName = TargetLongToShortName(target.targetName);
-								}
-								catch (Exception ex)
-								{
-								    SuperController.LogError("Exception caught: " + ex.Message);
-								}
-								batchedMessage.Append($"{shortTargetName},{targetObject.transform.position.x},{targetObject.transform.position.y},{targetObject.transform.position.z},{targetObject.transform.rotation.w},{targetObject.transform.rotation.x},{targetObject.transform.rotation.y},{targetObject.transform.rotation.z};");
+								FreeControllerV3 targetObject = playerAtom.GetStorableByID(target.targetName) as FreeControllerV3;
 
-								// Update the 'Old' position and rotation data
-								if (positionsBool.val)
+								if (targetObject != null)
 								{
-								target.positionOld = targetObject.transform.position;
-								}
+								//if (targetObject.transform.position != target.positionOld || targetObject.transform.rotation != target.rotationOld)
+								{
+									// Append main player's target position and rotation data to the batched message
+									// TODO: if value < 0.00001, round down to 0 to save space
+									
+									// Optimize transfer - use shortened targetname
+									string shortTargetName = "";
+									try
+									{
+									    shortTargetName = TargetLongToShortName(target.targetName);
+									}
+									catch (Exception ex)
+									{
+									    SuperController.LogError("Exception caught: " + ex.Message);
+									}
+									batchedMessage.Append($"{shortTargetName},{targetObject.transform.position.x},{targetObject.transform.position.y},{targetObject.transform.position.z},{targetObject.transform.rotation.w},{targetObject.transform.rotation.x},{targetObject.transform.rotation.y},{targetObject.transform.rotation.z};");
 
-								if (rotationsBool.val)
-								{
-								target.rotationOld = targetObject.transform.rotation;
+									// Update the 'Old' position and rotation data
+									if (positionsBool.val)
+									{
+									target.positionOld = targetObject.transform.position;
+									}
+
+									if (rotationsBool.val)
+									{
+									target.rotationOld = targetObject.transform.rotation;
+									}
+								} 
+								} else {
+									;//SuperController.LogError("TARGETOBJECT NULL 302");
 								}
-							} 
-							} else {
-								;//SuperController.LogError("TARGETOBJECT NULL 302");
 							}
 						}
+					} else
+					{
+						;//SuperController.LogError("PLAYER NOT FOUND");
 					}
 				} else
 				{
-					;//SuperController.LogError("PLAYER NOT FOUND");
+					// message indicating spectator mode
+					// no data is sent in request, we just want the response with all the other players data
+					batchedMessage.Clear();
+					batchedMessage.Append("S");
 				}
 
 				// Send the batched message if there are updates

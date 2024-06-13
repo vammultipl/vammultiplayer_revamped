@@ -23,7 +23,7 @@ class VAMMultiplayerServer:
         self.lock = threading.Lock()
 
     def listen(self):
-        self.sock.listen(3)  # Only expecting up to three players.
+        self.sock.listen(5)  # Only expecting up to five players.
         while True:
             client, address = self.sock.accept()
             print(f"New connection from {address[0]}:{address[1]}")
@@ -51,7 +51,7 @@ class VAMMultiplayerServer:
 #        else:
             player_name = parts[0]
             updates = parts[1:]
-            self.handle_batch_update(client, player_name, updates)
+            self.handle_batch_update(client, False, player_name, updates)
 
             # Log IP and player_name changes
             with self.lock:
@@ -61,7 +61,19 @@ class VAMMultiplayerServer:
                     print(f"{key} now controls player {player_name.decode()}")
                     self.on_user_change()
         else:
-            print(f"Error: got malformed input (less than 2 parts)")
+            if request == b"S":
+                # spectator mode
+                self.handle_batch_update(client, True, None, None)
+                # Log IP for spectator
+                with self.lock:
+                    key = f"{address[0]}:{address[1]}"
+                    player_name = b"@SPECTATOR@" # can be multiple spectators
+                    if key not in self.users or self.users[key] != player_name:
+                        self.users[key] = player_name
+                        print(f"{key} is now a SPECTATOR")
+                        self.on_user_change()
+            else:
+                print(f"Error: got malformed input: {request.decode()}")
 
 #    def handle_new_player(self, client, player_name):
 #        with self.lock:
@@ -72,29 +84,30 @@ class VAMMultiplayerServer:
 #            else:
 #                client.send(player_name + b" already added to server.")
 
-    def handle_batch_update(self, client, player_name, updates):
+    def handle_batch_update(self, client, is_spectator, player_name, updates):
         with self.lock:
-            # Ensure player exists
-            if player_name not in self.players:
-                if len(self.players) > 4:
-                    print(f"Error: already more than 4 players when trying to add Player with name: {player_name.decode()}")
-                    return
-                print(f"Adding new player: {player_name.decode()}")
-                self.players[player_name] = {}
-            # Update positions and rotations for the player
-            for update in updates:
-                data = update.split(b",")
-                if len(data) == 8:
-                    target_name = data[0]
-                    position_data = b",".join(data[1:])
-                    self.players[player_name][target_name] = position_data
-                else:
-                    print(f"Error: got malformed input (len: {len(data)}, updateStr: {update}, update: {update.decode()}")
+            if not is_spectator:
+                # Ensure player exists
+                if player_name not in self.players:
+                    if len(self.players) > 4:
+                        print(f"Error: already more than 4 players when trying to add Player with name: {player_name.decode()}")
+                        return
+                    print(f"Adding new player: {player_name.decode()}")
+                    self.players[player_name] = {}
+                # Update positions and rotations for the player
+                for update in updates:
+                    data = update.split(b",")
+                    if len(data) == 8:
+                        target_name = data[0]
+                        position_data = b",".join(data[1:])
+                        self.players[player_name][target_name] = position_data
+                    else:
+                        print(f"Error: got malformed input (len: {len(data)}, updateStr: {update}, update: {update.decode()}")
 
             # Prepare response with all other players' joint data
             response = []
             for other_player, targets in self.players.items():
-                if other_player != player_name:
+                if player_name is None or other_player != player_name:
                     for target_name, pos_rot_data in targets.items():
                         response.append(other_player + b"," + target_name + b"," + pos_rot_data)
 

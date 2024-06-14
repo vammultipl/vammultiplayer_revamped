@@ -64,6 +64,7 @@ namespace vamrobotics
         protected UIDynamicButton unCheckAll;
         protected JSONStorableString diagnostics;
         protected UIDynamicTextField diagnosticsTextField;
+        protected UIDynamicTextField instructionsTextField;
         private List<string> playerList;
         private List<string> onlinePlayers;
         private List<Player> players;
@@ -135,7 +136,7 @@ namespace vamrobotics
                 updateFrequencies.Add("50.0");
                 updateFrequencies.Add("60.0");
                 updateFrequencies.Add("75.0");
-                updateFrequencies.Add("500.0");
+                //updateFrequencies.Add("500.0");
                 updateFrequencyChooser = new JSONStorableStringChooser("Update Frequency Chooser", updateFrequencies, updateFrequencies[2], "Update Frequency", UpdateFrequencyChooserCallback);
                 RegisterStringChooser(updateFrequencyChooser);
                 CreatePopup(updateFrequencyChooser);
@@ -143,8 +144,8 @@ namespace vamrobotics
                 // Setup server selector
                 List<string> servers = new List<string>();
                 // Add new 'servers.Add("NEW SERVER IP");' to add new servers to the list
-                servers.Add("127.0.0.1");
-                servers.Add("192.168.1.1");
+                //servers.Add("127.0.0.1");
+                //servers.Add("192.168.1.1");
                 servers.Add("20.79.154.48");
                 serverChooser = new JSONStorableStringChooser("Server Chooser", servers, servers[2], "Select Server", ServerChooserCallback);
                 RegisterStringChooser(serverChooser);
@@ -154,15 +155,16 @@ namespace vamrobotics
                 List<string> ports = new List<string>();
                 // Add new 'ports.Add("NEW PORT");' to add new ports to the list
                 ports.Add("8888");
-                ports.Add("80");
-                ports.Add("443");
+                ports.Add("9999");
+                //ports.Add("80");
+                //ports.Add("443");
                 portChooser = new JSONStorableStringChooser("Port Chooser", ports, ports[0], "Select Port", PortChooserCallback);
                 RegisterStringChooser(portChooser);
                 CreatePopup(portChooser, true);
 
                 // Setup network protocol selector
                 List<string> protocols = new List<string>();
-                protocols.Add("UDP");
+                //protocols.Add("UDP");
                 protocols.Add("TCP");
                 protocolChooser = new JSONStorableStringChooser("Protocol Chooser", protocols, protocols[1], "Select Net Protocol", ProtocolChooserCallback);
                 RegisterStringChooser(protocolChooser);
@@ -265,6 +267,29 @@ namespace vamrobotics
                 CreateToggle(rShoulderControlBool);
                 lShoulderControlBool = new JSONStorableBool("lShoulderControl", true);
                 CreateToggle(lShoulderControlBool);
+
+		strings instructions = @"
+Instructions:
+1. Select a Player to control or choose Spectator mode to watch.
+2. Ensure the port (8888 or 9999) matches the room you want to join.
+3. Click 'Connect to Server'; it may take a few seconds.
+4. Check player status in the plugin window or via the Discord bot.
+5. If disconnected immediately, register your IP with the Discord bot. Registrations last 24h.
+6. You also get disconnected if select Player is already controlled. Select a different one and reconnect.
+7. Avoid changing Update Frequency or Updateable Targets. If lag occurs, try 25ms or 30ms Frequency.
+
+Tips:
+- If you encounter issues, click Disconnect and Connect again.
+- Reload the plugin if problems persist.
+
+Scenes:
+- All players in the same room must use the same scene and atoms.
+- Scene modifications on your end won’t sync with others.
+Syncing:
+- Only Player joints are synced; other elements like sex toys or UI changes are local and not visible to others.";
+
+                instructionsTextField = CreateTextField(new JSONStorableString("Instructions", instructions));
+		instructionsTextField.height = 600f;
             }
             catch (Exception e)
             {
@@ -832,6 +857,7 @@ namespace vamrobotics
 		catch (Exception ex)
 		{
 			SuperController.LogError("Exception: " + ex.Message);
+			diagnosticsTextField.text += "Error: server disconnected. Try to re-register via Discord bot.\n";
 			client?.Close();
 			client = null;
 			throw;

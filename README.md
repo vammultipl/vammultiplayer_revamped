@@ -31,15 +31,19 @@ The client plugin is a single `VAMMultiplayer.cs` file which can be added to any
 ## Instructions
 
 ### Connecting to the Server
-1. **Player Selection:**
+1. **Open Plugin settings**
+   - Go to Scene Plugins
+   - Add VAMMultiplayer.cs plugin if not already in the scene
+   - Open plugin settings ("Open Custom UI")
+2. **Player Selection:**
    - Choose a Player to control or select Spectator mode to watch.
    - Ensure the port (8888 or 9999) matches the room you want to join.
-2. **Connecting:**
+3. **Connecting:**
    - Click "Connect to Server"; it may take a few seconds.
    - Check player status in the plugin window or via the Discord bot.
    - If disconnected immediately, register your IP with the Discord bot. Registrations last 24h.
-   - If the Player is already controlled, select a different one and reconnect.
-3. **Settings:**
+   - Server might also disconnect you if selected Player is already controlled. Select a different one and reconnect.
+4. **Settings:**
    - Avoid changing Update Frequency or Updateable Targets. If lag occurs, try 25ms or 30ms Frequency.
 
 ### Tips
@@ -55,9 +59,9 @@ The client plugin is a single `VAMMultiplayer.cs` file which can be added to any
 - Only Player joints are synced; other elements like sex toys or UI changes are local and not visible to others.
 
 ## Registration and Commands
-Currently, MetaChat and VamChat Discords have the registration bot. You only need to register in one of these places.
+Currently, MetaChat and VamChat Discords have the registration bot. You only need to register in one server.
 
-To register your IP, type `/register <your IP>` in the bot channel, for example: `/register 1.2.3.4`.
+To register your IP, type `/register <your IP>` in the bot channel, for example: `/register 1.2.3.4`. Use a site like https://whatismyip.com to check your public IP.
 
 Other useful commands:
 - `/state`: Prints out the current room state - who's playing and which players are taken.

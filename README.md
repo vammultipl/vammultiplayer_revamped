@@ -1,41 +1,94 @@
-# VAM Multiplayer #
+# VaM Multiplayer Revamped Plugin
 
-If you ever wanted to use VAM in a multiplayer setting, it is now a reality! :)
+This project expands on vamrobot's VaM Multiplayer Plugin:
+[VaM Multiplayer Plugin by vamrobot](https://github.com/vamrobot/vammultiplayer)
 
-I originally made the first proof of concept VAM Multiplayer some two years ago. Back then the server code was done in python 2.x and the plugin itself, though functional, was missing a lot of features.
+## Overview
+I have launched a centralized server in Azure and added simple user registration via a Discord bot, eliminating the need for complex VPN or tunneling setups. This makes the plugin as easy to use as the MetaChat plugin.
 
-Having some time on my hands I decided to resurrect my old VAM Multiplayer proof of concept code and update it for use with python 3.x and add in many of the features I had wanted to years back.
+### New Features
+- Centralized server with Azure
+- Simple user registration via Discord bot
+- Enhanced performance and optimization
+- Improved player movement smoothness
+- Faster connection and gameplay compared to MetaChat
+- Simplified data syncing (only necessary data - player joints)
 
-The files are:
+## Technical Details
+The client plugin:
+- Scans available Player atoms and their names on initialization.
+- Syncs the controlled player’s joints with the server.
+- Receives other controlled players' joints from the server.
+- Does not check or sync scene content (uncontrolled atoms, user data).
 
-* VAMMultiplayer.cs - Is the multiplayer plugin for VAM
+### Simplified vs. MetaChat
+- No user accounts; users are allowed by IP, registered via Discord bot for 24h.
+- Voice/chat must be coordinated outside the plugin (e.g., Discord with OVR Toolkit in VR).
 
-* vamrobot.VAMMultiplayerTestScene.1.var - Contains a simple test scene, along with the VAM Multiplayer plugin itself
+## Installation
+The client plugin is a single `VAMMultiplayer.cs` file which can be added to any scene. All players must be using the same version of the plugin.
 
-* VAMMultiplayerUDPServer.py and VAMMultiplayerTCPServer.py - Are the two python 3.x servers, UDP and TCP
+## Instructions
 
-The basic steps involved in running VAM Multiplayer are:
+### Connecting to the Server
+1. **Player Selection:**
+   - Choose a Player to control or select Spectator mode to watch.
+   - Ensure the port (8888 or 9999) matches the room you want to join.
+2. **Connecting:**
+   - Click "Connect to Server"; it may take a few seconds.
+   - Check player status in the plugin window or via the Discord bot.
+   - If disconnected immediately, register your IP with the Discord bot. Registrations last 24h.
+   - If the Player is already controlled, select a different one and reconnect.
+3. **Settings:**
+   - Avoid changing Update Frequency or Updateable Targets. If lag occurs, try 25ms or 30ms Frequency.
 
-* Install python 3.x (adding python to the Window's PATH to make things easier) on a computer that will be accessible by all VAM clients
+### Tips
+- If you encounter issues, click Disconnect and Connect again.
+- Reload the plugin if problems persist.
 
-* Run either the UDP or the TCP python server through the command line
+### Scenes
+- All players in the same room must use the same scene and atoms.
+- Scene modifications on your end won’t sync with others.
+- Scenes must be shared with players on Discord before playing. Otherwise, you can assume the default scene is used.
 
-* Place vamrobot.VAMMultiplayerTestScene.1.var in the VAM's AddonPackages folder on each VAM client
+### Syncing
+- Only Player joints are synced; other elements like sex toys or UI changes are local and not visible to others.
 
-* Launch VAM on each client and load the VAM Multiplayer Test Scene via VAM's scene browser (accept/allow the use of the included plugin when asked)
+## Registration and Commands
+Currently, MetaChat and VamChat Discords have the registration bot. You only need to register in one of these places.
 
-* Enter Edit Mode, go to the Scene Plugins screen, click on Open Custom UI, and you will be able to configure the VAM Muliplayer plugin
+To register your IP, type `/register <your IP>` in the bot channel, for example: `/register 1.2.3.4`.
 
-* When configuring the VAM Multiplayer plugin, select the desired Player (atom) you want to control with each VAM client and make sure each VAM client selects a different Player
+Other useful commands:
+- `/state`: Prints out the current room state - who's playing and which players are taken.
+- `/monitor`: Constantly prints changes about rooms - who's connecting/disconnecting, useful for notifications when someone joins or leaves.
 
-* Ensure the server settings match (IP, port, protocol) with the python server you have running and hit Connect to server
+## Troubleshooting
+If you can't connect to the server, it might be due to:
+- Server being down (unlikely)
+- Room being full (verify with Discord bot)
+- You are not registered (register with the bot again)
+- The player you are trying to control is already being controlled
 
-* The VAM Multiplayer experience can now begin! :)
+## Lobbies
+- Two rooms are available, running in parallel on ports 8888 and 9999.
+- The Discord bot shows which players are connected to which room.
+- Registration works for both rooms.
 
-You can of course manually edit the VAM Multiplayer plugin to add new/different IP addresses, ports, etc.
+## Hosting Your Own VaM Multiplayer
+If you want to host everything yourself, you can recreate this setup easily:
+1. Host a Linux server (e.g., free Azure tier or Oracle Linux VMs).
+2. Run the TCP server on your server.
+3. Run the Discord bot in the same folder to handle user registration.
+4. Add the bot to your Discord.
+5. Change the server IP in the Plugin .cs file to your server’s IP.
+6. You now have a parallel VaM Multiplayer setup with full admin rights.
 
-In addition, you can edit the python server programs to change the desired IP and ports they attach to when run.
+## Security and Privacy
+- No user data is stored on the server apart from registered user IPs, which expire and are deleted every 24h.
+- Position and rotation of joints are the only data transmitted.
+- TCP connection is not protected by SSL; data is in plaintext.
+- IPs not in the allowlist managed by the Discord bot are immediately disconnected.
 
-VAM Multiplayer can definitely be made much faster, in both the plugin's code, and definitely with the server's code, so consider this v1.0 a 'dip your toes in the water' type of experience! :)
-
-I hope you all enjoy it and I welcome anyone to have their hand at modifying/extending the code for VAM Multiplayer, hence when I have it MIT licensed! :)
+## Additional Help
+- Visit the old MetaChat Discord or the newer VamChat Discord (another project for a full-fledged MetaChat replacement).

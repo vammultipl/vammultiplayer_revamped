@@ -75,7 +75,7 @@ If you can't connect to the server, it might be due to:
 - The player you are trying to control is already being controlled
 
 ## Lobbies
-- Two rooms are available, running in parallel on ports 8888 and 9999.
+- Two rooms are available, running in parallel on ports 8888 and 9999, max 4 players per room.
 - The Discord bot shows which players are connected to which room.
 - Registration works for both rooms.
 
@@ -93,6 +93,9 @@ If you want to host everything yourself, you can recreate this setup easily:
 - Position and rotation of joints are the only data transmitted.
 - TCP connection is not protected by SSL; data is in plaintext.
 - IPs not in the allowlist managed by the Discord bot are immediately disconnected.
+
+## Known Issues
+- "Player connected/disconnected" messages in plugin window are wonky and not always correct. Discord bot statuses are always correct, updated every 30s.
 
 ## Additional Help
 - Visit the old MetaChat Discord or the newer VamChat Discord (another project for a full-fledged MetaChat replacement).

@@ -18,7 +18,7 @@ import (
 var (
 	token          string
 	filePath       = "allowlist.txt" // user IP allowlist
-	expirationTime = 24 * 14 * time.Hour // 2 weeks expiration
+	expirationTime = 24 * 1 * time.Hour // 24hr expiration
 	mutex          sync.Mutex // Mutex to protect access to the allowlist file
 	prevPlayerStatus string = ""
 )

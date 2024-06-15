@@ -66,6 +66,7 @@ namespace vamrobotics
         protected UIDynamicButton unCheckAll;
         protected JSONStorableString diagnostics;
         protected UIDynamicTextField diagnosticsTextField;
+        protected JSONStorableString instructions;
         protected UIDynamicTextField instructionsTextField;
         private List<string> playerList;
         private List<string> onlinePlayers;
@@ -270,7 +271,7 @@ namespace vamrobotics
                 lShoulderControlBool = new JSONStorableBool("lShoulderControl", true);
                 CreateToggle(lShoulderControlBool);
 
-		string instructions = @"
+		string instructionsStr = @"
 Instructions:
 1. Select a Player to control or choose Spectator mode to watch.
 2. Ensure the port (8888 or 9999) matches the room you want to join.
@@ -288,10 +289,12 @@ Scenes:
 - All players in the same room must use the same scene and atoms.
 - Scene modifications on your end won’t sync with others.
 Syncing:
-- Only Player joints are synced; other elements like sex toys or UI changes are local and not visible to others.";
+- Only Player joints are synced; other elements like sex toys or UI changes are local and not visible to others.\n";
 
-                instructionsTextField = CreateTextField(new JSONStorableString("Instructions", instructions));
+                instructions = new JSONStorableString("Instructions", "Instructions:\n");
+                instructionsTextField = CreateTextField(instructions, true);
 		instructionsTextField.height = 600f;
+		instructionsTextField.text = instructionsStr;
             }
             catch (Exception e)
             {

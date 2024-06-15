@@ -125,12 +125,12 @@ func getCurrentGameStatus() (string, error) {
 	filenameRoom1 := "current_players_port8888.txt"
 	filenameRoom2 := "current_players_port9999.txt"
 
-	statusRoom1, err := getRoomStatus(filenameRoom1, "ROOM1")
+	statusRoom1, err := getRoomStatus(filenameRoom1, "ROOM1 (port:8888)")
 	if err != nil {
 		return "", err
 	}
 
-	statusRoom2, err := getRoomStatus(filenameRoom2, "ROOM2")
+	statusRoom2, err := getRoomStatus(filenameRoom2, "ROOM2 (port:9999)")
 	if err != nil {
 		return "", err
 	}

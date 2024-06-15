@@ -130,7 +130,7 @@ class VAMMultiplayerServer:
                 self.on_user_change()
 
     def on_user_change(self):
-        filename = f'current_players{self.port}.txt'
+        filename = f'current_players_port{self.port}.txt'
         with open(filename, 'a') as f:
             timestamp = int(time.time())
             state = ",".join(f"{ip_port}:{player_name.decode()}" for ip_port, player_name in self.users.items())

@@ -125,12 +125,12 @@ func getCurrentGameStatus() (string, error) {
 	filenameRoom1 := "current_players_port8888.txt"
 	filenameRoom2 := "current_players_port9999.txt"
 
-	statusRoom1, err := getRoomStatus(filenameRoom1, "ROOM1 (port:8888)")
+	statusRoom1, err := getRoomStatus(filenameRoom1, "ROOM1")
 	if err != nil {
 		return "", err
 	}
 
-	statusRoom2, err := getRoomStatus(filenameRoom2, "ROOM2 (port:9999)")
+	statusRoom2, err := getRoomStatus(filenameRoom2, "ROOM2")
 	if err != nil {
 		return "", err
 	}
@@ -148,7 +148,7 @@ func getRoomStatus(filePath, roomLabel string) (string, error) {
 	var lastLine string
 	scanner := bufio.NewScanner(file)
 	fileEmpty := true  // Flag to check if the file is empty
-	while scanner.Scan() {
+	for scanner.Scan() {
 		lastLine = scanner.Text()
 		fileEmpty = false // File has at least one line
 	}
@@ -188,7 +188,7 @@ func getRoomStatus(filePath, roomLabel string) (string, error) {
 
 func getPlayerDetails(state, timestampStr string) (string, error) {
 	if state == "" {
-		return fmt.Sprintf("%s: No players currently connected.", timestampStr), nil
+		return fmt.Sprintf("%s: Empty.", timestampStr), nil
 	}
 
 	playerInfo := strings.Split(state, ",")
@@ -197,9 +197,9 @@ func getPlayerDetails(state, timestampStr string) (string, error) {
 		playerParts := strings.Split(info, ":")
 		if len(playerParts) == 3 {
 			if "@SPECTATOR@" == playerParts[2] {
-				playerDetails += fmt.Sprintf("User IP: %s is a SPECTATOR.\n", playerParts[0])
+				playerDetails += fmt.Sprintf("IP: %s is SPECTATOR.\n", playerParts[0])
 			} else {
-				playerDetails += fmt.Sprintf("User IP: %s controls: %s.\n", playerParts[0], playerParts[2])
+				playerDetails += fmt.Sprintf("IP: %s controls %s.\n", playerParts[0], playerParts[2])
 			}
 		}
 	}
@@ -224,7 +224,7 @@ func startCleanupTimer() {
 }
 
 func startPlayerStateMonitor(s *discordgo.Session) {
-	ticker := time.NewTicker(30 * time.Second)
+	ticker := time.NewTicker(20* time.Second)
 	for {
 		select {
 		case <-ticker.C:
@@ -237,12 +237,15 @@ func updatePlayerStatus(s *discordgo.Session) {
 	gameStatus, err := getCurrentGameStatus()
 	if err == nil {
 		if gameStatus != prevPlayerStatus {
+			// NOTE: max size is around 125, longer ones wont go through
 			err := s.UpdateCustomStatus(gameStatus)
 			if err != nil {
 				fmt.Println("error updating custom status", err)
 			}
 			prevPlayerStatus = gameStatus
 		}
+	} else {
+		fmt.Println("error getting game status", err)
 	}
 }
 

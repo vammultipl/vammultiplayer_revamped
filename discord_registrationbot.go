@@ -236,8 +236,10 @@ func startPlayerStateMonitor(s *discordgo.Session) {
 func updatePlayerStatus(s *discordgo.Session) {
 	gameStatus, err := getCurrentGameStatus()
 	if err == nil {
+		if len(gameStatus) > 125 {
+			gameStatus = "Send /state command to check the state of rooms"
+		}
 		if gameStatus != prevPlayerStatus {
-			// NOTE: max size is around 125, longer ones wont go through
 			err := s.UpdateCustomStatus(gameStatus)
 			if err != nil {
 				fmt.Println("error updating custom status", err)

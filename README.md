@@ -49,21 +49,24 @@ The client plugin is a single `VAMMultiplayer.cs` file which can be added to any
 ### Tips
 - If you encounter issues, click Disconnect and Connect again.
 - Reload the plugin if problems persist.
+- Make sure to use the latest available version of the client plugin
 
 ### Scenes
-- All players in the same room must use the same scene and atoms.
-- Scene modifications on your end won’t sync with others.
-- Scenes must be shared with players on Discord before playing. Otherwise, you can assume the default scene is used.
+- All players in the same room must use the same scene with pre-defined atoms.
+- Scene modifications (changing looks, clothes, etc) on your end won’t sync with others.
+- The scene must be shared with other players on Discord first so that everyone sees the same things and has the same atoms. Otherwise, you can assume the default scene is used.
+- Plugins also don't sync if you modify them, except for plugins like AutoThruster (as it moves the atoms)
 
 ### Syncing
-- Only Player joints are synced; other elements like sex toys or UI changes are local and not visible to others.
+- Only Player joints are synced; other elements like sex toys or UI changes are local and interaction with them is not visible to others.
 
 ## Registration and Commands
 Currently, MetaChat and VamChat Discords have the registration bot. You only need to register in one server.
 
-To register your IP, type `/register <your IP>` in the bot channel, for example: `/register 1.2.3.4`. Use a site like https://whatismyip.com to check your public IP.
+To register your IP, type `/register <your IP>` in a DM to the bot, for example: `/register 1.2.3.4`. Use a site like https://whatismyip.com to check your public IP.
+The registration is active for the next 24h.
 
-Other useful commands:
+Other useful commands (can be used in the bot channel):
 - `/state`: Prints out the current room state - who's playing and which players are taken.
 - `/monitor`: Constantly prints changes about rooms - who's connecting/disconnecting, useful for notifications when someone joins or leaves.
 
@@ -73,6 +76,7 @@ If you can't connect to the server, it might be due to:
 - Room being full (verify with Discord bot)
 - You are not registered (register with the bot again)
 - The player you are trying to control is already being controlled
+- Not using latest version of the client plugin
 
 ## Lobbies
 - Two rooms are available, running in parallel on ports 8888 and 9999, max 4 players per room.
@@ -89,7 +93,8 @@ If you want to host everything yourself, you can recreate this setup easily:
 6. You now have a parallel VaM Multiplayer setup with full admin rights.
 
 ## Security and Privacy
-- No user data is stored on the server apart from registered user IPs, which expire and are deleted every 24h.
+- No user data is stored on the server apart from registered user IPs and Discord usernames, which expire and are deleted every 24h.
+- Discord bot only displays Discord usernames of connected players when prompted with /state or /monitor commands.
 - Position and rotation of joints are the only data transmitted.
 - TCP connection is not protected by SSL; data is in plaintext.
 - IPs not in the allowlist managed by the Discord bot are immediately disconnected.

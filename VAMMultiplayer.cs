@@ -150,7 +150,7 @@ namespace vamrobotics
                 //servers.Add("127.0.0.1");
                 //servers.Add("192.168.1.1");
                 servers.Add("20.79.154.48");
-                serverChooser = new JSONStorableStringChooser("Server Chooser", servers, servers[2], "Select Server", ServerChooserCallback);
+                serverChooser = new JSONStorableStringChooser("Server Chooser", servers, servers[0], "Select Server", ServerChooserCallback);
                 RegisterStringChooser(serverChooser);
                 CreatePopup(serverChooser, true);
 
@@ -169,7 +169,7 @@ namespace vamrobotics
                 List<string> protocols = new List<string>();
                 //protocols.Add("UDP");
                 protocols.Add("TCP");
-                protocolChooser = new JSONStorableStringChooser("Protocol Chooser", protocols, protocols[1], "Select Net Protocol", ProtocolChooserCallback);
+                protocolChooser = new JSONStorableStringChooser("Protocol Chooser", protocols, protocols[0], "Select Net Protocol", ProtocolChooserCallback);
                 RegisterStringChooser(protocolChooser);
                 CreatePopup(protocolChooser, true);
 
@@ -272,13 +272,12 @@ namespace vamrobotics
                 CreateToggle(lShoulderControlBool);
 
 		string instructionsStr = @"
-Instructions:
 1. Select a Player to control or choose Spectator mode to watch.
 2. Ensure the port (8888 or 9999) matches the room you want to join.
-3. Click 'Connect to Server', it may take a few seconds.
+3. Click 'Connect to server', it may take a few seconds.
 4. Check player status in the plugin window or via the Discord bot.
 5. If disconnected immediately, register your IP with the Discord bot. Registrations last 24h.
-6. You also get disconnected if select Player is already controlled. Select a different one and reconnect.
+6. You also get disconnected if selected Player is already controlled. Select a different one and reconnect.
 7. Avoid changing Update Frequency or Updateable Targets. If lag occurs, try 25ms or 30ms Frequency.
 
 Tips:
@@ -289,7 +288,7 @@ Scenes:
 - All players in the same room must use the same scene and atoms.
 - Scene modifications on your end won’t sync with others.
 Syncing:
-- Only Player joints are synced; other elements like sex toys or UI changes are local and not visible to others.\n";
+- Only Player joints are synced; moving other elements like sex toys or UI changes are local and not visible to others.";
 
                 instructions = new JSONStorableString("Instructions", "Instructions:\n");
                 instructionsTextField = CreateTextField(instructions, true);

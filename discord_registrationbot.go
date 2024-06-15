@@ -101,7 +101,7 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 			s.ChannelMessageSend(m.ChannelID, "Invalid command or IP address format. Please use /register 123.45.67.89")
 		}
 	} else if strings.HasPrefix(m.Content, "/state") {
-		gameStatus, err := getCurrentGameStatus("current_players.txt")
+		gameStatus, err := getCurrentGameStatus()
 		if err != nil {
 			fmt.Println("Error reading game status: ", err)
 			s.ChannelMessageSend(m.ChannelID, "Error retrieving game status.")
@@ -120,7 +120,25 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 }
 
 // getCurrentGameStatus reads the last line of the file to get the current game status
-func getCurrentGameStatus(filePath string) (string, error) {
+// it does that for both files (for both rooms)
+func getCurrentGameStatus() (string, error) {
+	filenameRoom1 := "current_players_port8888.txt"
+	filenameRoom2 := "current_players_port9999.txt"
+
+	statusRoom1, err := getRoomStatus(filenameRoom1, "ROOM1")
+	if err != nil {
+		return "", err
+	}
+
+	statusRoom2, err := getRoomStatus(filenameRoom2, "ROOM2")
+	if err != nil {
+		return "", err
+	}
+
+	return fmt.Sprintf("%s\n%s", statusRoom1, statusRoom2), nil
+}
+
+func getRoomStatus(filePath, roomLabel string) (string, error) {
 	file, err := os.Open(filePath)
 	if err != nil {
 		return "", err
@@ -129,8 +147,15 @@ func getCurrentGameStatus(filePath string) (string, error) {
 
 	var lastLine string
 	scanner := bufio.NewScanner(file)
-	for scanner.Scan() {
+	fileEmpty := true  // Flag to check if the file is empty
+	while scanner.Scan() {
 		lastLine = scanner.Text()
+		fileEmpty = false // File has at least one line
+	}
+
+	// if file is empty - just say the room is not running
+	if fileEmpty {
+		return fmt.Sprintf("%s:\n%s", roomLabel, "Not running."), nil
 	}
 
 	if err := scanner.Err(); err != nil {
@@ -140,33 +165,41 @@ func getCurrentGameStatus(filePath string) (string, error) {
 	// Parsing the last line to extract game status
 	parts := strings.SplitN(lastLine, ";", 2)
 	if len(parts) != 2 {
-		return "Invalid game status format in file.", nil
+		return fmt.Sprintf("%s: Invalid game status format in file.", roomLabel), nil
 	}
 
-	timestamp := parts[0]
-	state := parts[1]
+	timestamp, state := parts[0], parts[1]
 
 	// Convert timestamp to human-readable format
 	timestampInt, err := strconv.ParseInt(timestamp, 10, 64)
 	if err != nil {
-		return "Error parsing timestamp.", nil
+		return fmt.Sprintf("%s: Error parsing timestamp.", roomLabel), nil
 	}
 	timestampStr := time.Unix(timestampInt, 0).Format(time.RFC1123)
 
-	if state == "" {
-		return fmt.Sprintf("%s:\nNo players currently connected.", timestampStr), nil
+	// Build the player details string
+	playerDetails, err := getPlayerDetails(state, timestampStr)
+	if err != nil {
+		return "", err
 	}
 
-	// Split state into individual player info
+	return fmt.Sprintf("%s:\n%s", roomLabel, playerDetails), nil
+}
+
+func getPlayerDetails(state, timestampStr string) (string, error) {
+	if state == "" {
+		return fmt.Sprintf("%s: No players currently connected.", timestampStr), nil
+	}
+
 	playerInfo := strings.Split(state, ",")
 	playerDetails := ""
 	for _, info := range playerInfo {
 		playerParts := strings.Split(info, ":")
 		if len(playerParts) == 3 {
 			if "@SPECTATOR@" == playerParts[2] {
-				playerDetails += fmt.Sprintf("User IP: %s is a SPECTATOR\n", playerParts[0])
+				playerDetails += fmt.Sprintf("User IP: %s is a SPECTATOR.\n", playerParts[0])
 			} else {
-				playerDetails += fmt.Sprintf("User IP: %s controls: %s\n", playerParts[0], playerParts[2])
+				playerDetails += fmt.Sprintf("User IP: %s controls: %s.\n", playerParts[0], playerParts[2])
 			}
 		}
 	}
@@ -201,7 +234,7 @@ func startPlayerStateMonitor(s *discordgo.Session) {
 }
 
 func updatePlayerStatus(s *discordgo.Session) {
-	gameStatus, err := getCurrentGameStatus("current_players.txt")
+	gameStatus, err := getCurrentGameStatus()
 	if err == nil {
 		if gameStatus != prevPlayerStatus {
 			err := s.UpdateCustomStatus(gameStatus)

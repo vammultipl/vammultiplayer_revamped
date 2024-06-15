@@ -275,7 +275,7 @@ namespace vamrobotics
 Instructions:
 1. Select a Player to control or choose Spectator mode to watch.
 2. Ensure the port (8888 or 9999) matches the room you want to join.
-3. Click 'Connect to Server'; it may take a few seconds.
+3. Click 'Connect to Server', it may take a few seconds.
 4. Check player status in the plugin window or via the Discord bot.
 5. If disconnected immediately, register your IP with the Discord bot. Registrations last 24h.
 6. You also get disconnected if select Player is already controlled. Select a different one and reconnect.
@@ -294,7 +294,7 @@ Syncing:
                 instructions = new JSONStorableString("Instructions", "Instructions:\n");
                 instructionsTextField = CreateTextField(instructions, true);
 		instructionsTextField.height = 600f;
-		instructionsTextField.text = instructionsStr;
+		instructionsTextField.text += instructionsStr;
             }
             catch (Exception e)
             {

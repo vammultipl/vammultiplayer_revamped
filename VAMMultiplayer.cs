@@ -1,6 +1,8 @@
 // VAM Multiplayer
 // vamrobotics (7-28-2021)
 // https://github.com/vamrobot/vammultiplayer
+// vammultipl (06-15-2024)
+// https://github.com/vammultipl/vammultiplayer_revamped
 
 using System;
 using UnityEngine;
@@ -268,7 +270,7 @@ namespace vamrobotics
                 lShoulderControlBool = new JSONStorableBool("lShoulderControl", true);
                 CreateToggle(lShoulderControlBool);
 
-		strings instructions = @"
+		string instructions = @"
 Instructions:
 1. Select a Player to control or choose Spectator mode to watch.
 2. Ensure the port (8888 or 9999) matches the room you want to join.

@@ -17,9 +17,10 @@ import (
 
 var (
 	token          string
-	filePath       = "allowlist.txt" // user IP allowlist
+	allowlistFile       = "allowlist.txt" // user IP allowlist
+	usernamesFile       = "usernames_ips.txt" // mapping of IPs into usernames
 	expirationTime = 24 * 1 * time.Hour // 24hr expiration
-	allowlistMutex          sync.Mutex // Mutex to protect access to the allowlist file
+	allowlistMutex          sync.Mutex // Mutex to protect access to the allowlist and usernames file
 	prevPlayerStatus string = ""
 	monitoredChannels = make(map[string]time.Time) // monitoring enabled channels by /monitor command
 	mu               sync.Mutex // mutex protecting monitoredChannels
@@ -105,7 +106,13 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 		if len(parts) == 2 {
 			if (isValidIP(parts[1])) {
 				ip := strings.TrimSpace(parts[1])
-				registerIP(ip)
+				// register IP in allowlist txt file and file with IP to username mapping
+				err := registerIP(ip, m.Author.Username)
+				if err != nil {
+					fmt.Println("error: failed to register IP: ", ip)
+					s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("Failed to register IP"))
+					return
+				}
 				fmt.Println("Registered IP: ", ip)
 				s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("Your IP address %s has been successfully registered/refreshed. You can now connect to the game.", ip))
 			} else {
@@ -243,6 +250,38 @@ func getRoomStatus(filePath, roomLabel string) (string, error) {
 	return fmt.Sprintf("%s:\n%s", roomLabel, playerDetails), nil
 }
 
+// Fetch username from mapping file based on IP
+func getUsernameFromIP(ip string) (string, error) {
+	// lock the files mutex
+	allowlistMutex.Lock()
+	defer allowlistMutex.Unlock()
+
+	file, err := os.Open(usernamesFile)
+	if err != nil {
+		return "", err
+	}
+	defer file.Close()
+
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		line := scanner.Text()
+		parts := strings.Split(line, " ")
+		if len(parts) != 2 {
+			continue // Skip lines that don't match the expected format
+		}
+
+		if parts[0] == ip {
+			return parts[1], nil
+		}
+	}
+
+	if err := scanner.Err(); err != nil {
+		return "", err
+	}
+
+	return "", fmt.Errorf("IP %s not found", ip)
+}
+
 func getPlayerDetails(state, timestampStr string) (string, error) {
 	if state == "" {
 		return fmt.Sprintf("%s: Empty.", timestampStr), nil
@@ -253,10 +292,16 @@ func getPlayerDetails(state, timestampStr string) (string, error) {
 	for _, info := range playerInfo {
 		playerParts := strings.Split(info, ":")
 		if len(playerParts) == 3 {
+			// get username from mapping file based on IP
+			// we want to avoid showing user IPs
+			username, err := getUsernameFromIP(playerParts[0])
+			if err != nil {
+				username = "unknown"
+			}
 			if "@SPECTATOR@" == playerParts[2] {
-				playerDetails += fmt.Sprintf("IP: %s is SPECTATOR.\n", playerParts[0])
+				playerDetails += fmt.Sprintf("%s is SPECTATOR.\n", username)
 			} else {
-				playerDetails += fmt.Sprintf("IP: %s controls %s.\n", playerParts[0], playerParts[2])
+				playerDetails += fmt.Sprintf("%s controls %s.\n", username, playerParts[2])
 			}
 		}
 	}
@@ -325,22 +370,71 @@ func updateMonitoredChannelsWithStatus(dg *discordgo.Session, currentState strin
 	}
 }
 
-func registerIP(ip string) {
+func registerIP(ip string, username string) error {
 	allowlistMutex.Lock()
 	defer allowlistMutex.Unlock()
 
+	// Add IP-username mapping in file
+	fileUsernames, err := os.OpenFile(usernamesFile, os.O_RDWR|os.O_CREATE, 0644)
+	if err != nil {
+		fmt.Println("error opening usernames file,", err)
+		return err
+	}
+	defer fileUsernames.Close()
+
+	var updatedLinesUsernames []string
+	userExists := false
+	scanner := bufio.NewScanner(fileUsernames)
+	for scanner.Scan() {
+		line := scanner.Text()
+		parts := strings.Split(line, " ")
+		if len(parts) != 2 {
+			continue
+		}
+		existingIP := parts[0]
+		existingUser := parts[1]
+		if existingUser == username {
+			// update IP for user
+			updatedLinesUsernames = append(updatedLinesUsernames, fmt.Sprintf("%s %s", ip, username))
+			userExists = true
+		} else {
+			updatedLinesUsernames = append(updatedLinesUsernames, fmt.Sprintf("%s %s", existingIP, existingUser))
+		}
+	}
+
+	if !userExists {
+		updatedLinesUsernames = append(updatedLinesUsernames, fmt.Sprintf("%s %s", ip, username))
+	}
+
+	if err := scanner.Err(); err != nil {
+		fmt.Println("error reading usernames file,", err)
+		return err
+	}
+
+	fileUsernames.Seek(0, 0)
+	fileUsernames.Truncate(0)
+
+	for _, line := range updatedLinesUsernames {
+		_, err := fileUsernames.WriteString(line + "\n")
+		if err != nil {
+			fmt.Println("error writing to usernames file,", err)
+			return err
+		}
+	}
+
+	// Now update allowlist text file
 	currentTime := time.Now().Unix()
-	var updatedLines []string
+	var updatedLinesAllowlist []string
 	ipExists := false
 
-	file, err := os.OpenFile(filePath, os.O_RDWR|os.O_CREATE, 0644)
+	fileAllowlist, err := os.OpenFile(allowlistFile, os.O_RDWR|os.O_CREATE, 0644)
 	if err != nil {
 		fmt.Println("error opening allowlist file,", err)
-		return
+		return err
 	}
-	defer file.Close()
+	defer fileAllowlist.Close()
 
-	scanner := bufio.NewScanner(file)
+	scanner = bufio.NewScanner(fileAllowlist)
 	for scanner.Scan() {
 		line := scanner.Text()
 		parts := strings.Split(line, " ")
@@ -351,31 +445,34 @@ func registerIP(ip string) {
 		timestamp := parts[1]
 
 		if existingIP == ip {
-			updatedLines = append(updatedLines, fmt.Sprintf("%s %d", ip, currentTime))
+			updatedLinesAllowlist = append(updatedLinesAllowlist, fmt.Sprintf("%s %d", ip, currentTime))
 			ipExists = true
 		} else {
-			updatedLines = append(updatedLines, fmt.Sprintf("%s %s", existingIP, timestamp))
+			updatedLinesAllowlist = append(updatedLinesAllowlist, fmt.Sprintf("%s %s", existingIP, timestamp))
 		}
 	}
 
 	if !ipExists {
-		updatedLines = append(updatedLines, fmt.Sprintf("%s %d", ip, currentTime))
+		updatedLinesAllowlist = append(updatedLinesAllowlist, fmt.Sprintf("%s %d", ip, currentTime))
 	}
 
 	if err := scanner.Err(); err != nil {
 		fmt.Println("error reading allowlist file,", err)
-		return
+		return err
 	}
 
-	file.Seek(0, 0)
-	file.Truncate(0)
+	fileAllowlist.Seek(0, 0)
+	fileAllowlist.Truncate(0)
 
-	for _, line := range updatedLines {
-		_, err := file.WriteString(line + "\n")
+	for _, line := range updatedLinesAllowlist {
+		_, err := fileAllowlist.WriteString(line + "\n")
 		if err != nil {
 			fmt.Println("error writing to allowlist file,", err)
+			return err
 		}
 	}
+
+	return nil
 }
 
 func cleanupExpiredIPs() {
@@ -383,10 +480,12 @@ func cleanupExpiredIPs() {
 	allowlistMutex.Lock()
 	defer allowlistMutex.Unlock()
 
+	expiredIPs := make(map[string]struct{})
+
 	currentTime := time.Now().Unix()
 	var updatedLines []string
 
-	file, err := os.OpenFile(filePath, os.O_RDWR|os.O_CREATE, 0644)
+	file, err := os.OpenFile(allowlistFile, os.O_RDWR|os.O_CREATE, 0644)
 	if err != nil {
 		fmt.Println("error opening allowlist file,", err)
 		return
@@ -410,6 +509,7 @@ func cleanupExpiredIPs() {
 			updatedLines = append(updatedLines, line)
 		} else {
 			fmt.Printf("Expired IP removed: %s\n", ip)
+			expiredIPs[ip] = struct{}{}
 		}
 	}
 
@@ -425,6 +525,51 @@ func cleanupExpiredIPs() {
 		_, err := file.WriteString(line + "\n")
 		if err != nil {
 			fmt.Println("error writing to allowlist file,", err)
+		}
+	}
+
+	// No need to proceed if no IPs were expired
+	if len(expiredIPs) == 0 {
+		return
+	}
+
+	// Now clear the expired IPs from usernames mapping file
+	var updatedLinesUsernames []string
+	fileUsernames, err := os.OpenFile(usernamesFile, os.O_RDWR|os.O_CREATE, 0644)
+	if err != nil {
+		fmt.Println("error opening usernames file,", err)
+		return
+	}
+	defer fileUsernames.Close()
+
+	scanner = bufio.NewScanner(fileUsernames)
+	for scanner.Scan() {
+		line := scanner.Text()
+		parts := strings.Split(line, " ")
+		if len(parts) != 2 {
+			continue
+		}
+		existingIP := parts[0]
+		existingUser:= parts[1]
+		// skip lines with expired IPs
+		if _, exists := expiredIPs[existingIP]; !exists {
+			updatedLinesUsernames = append(updatedLinesUsernames, fmt.Sprintf("%s %s", existingIP, existingUser))
+		}
+	}
+
+	if err := scanner.Err(); err != nil {
+		fmt.Println("error reading usernames file,", err)
+		return
+	}
+
+	fileUsernames.Seek(0, 0)
+	fileUsernames.Truncate(0)
+
+	for _, line := range updatedLinesUsernames {
+		_, err := fileUsernames.WriteString(line + "\n")
+		if err != nil {
+			fmt.Println("error writing to usernames file,", err)
+			return
 		}
 	}
 }

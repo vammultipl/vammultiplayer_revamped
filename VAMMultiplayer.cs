@@ -132,13 +132,14 @@ namespace vamrobotics
                 List<string> updateFrequencies = new List<string>();
                 updateFrequencies.Add("5.0");
                 updateFrequencies.Add("10.0");
+                updateFrequencies.Add("15.0");
                 updateFrequencies.Add("20.0");
                 updateFrequencies.Add("25.0");
                 updateFrequencies.Add("30.0");
-                updateFrequencies.Add("40.0");
-                updateFrequencies.Add("50.0");
-                updateFrequencies.Add("60.0");
-                updateFrequencies.Add("75.0");
+               // updateFrequencies.Add("40.0");
+               // updateFrequencies.Add("50.0");
+               // updateFrequencies.Add("60.0");
+               // updateFrequencies.Add("75.0");
                 //updateFrequencies.Add("500.0");
                 updateFrequencyChooser = new JSONStorableStringChooser("Update Frequency Chooser", updateFrequencies, updateFrequencies[2], "Update Frequency", UpdateFrequencyChooserCallback);
                 RegisterStringChooser(updateFrequencyChooser);

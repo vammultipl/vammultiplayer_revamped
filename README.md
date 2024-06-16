@@ -26,7 +26,7 @@ The client plugin:
 - Voice/chat must be coordinated outside the plugin (e.g., Discord with OVR Toolkit in VR).
 
 ## Installation
-The client plugin is a single `VAMMultiplayer.cs` file which can be added to any scene. All players must be using the same version of the plugin.
+The client plugin is a single `VAMMultiplayer.cs` file which can be added to any scene. All players must be using the latest version of the plugin.
 
 ## Instructions
 
@@ -54,7 +54,7 @@ The client plugin is a single `VAMMultiplayer.cs` file which can be added to any
 ### Scenes
 - All players in the same room must use the same scene with pre-defined atoms.
 - Scene modifications (changing looks, clothes, etc) on your end won’t sync with others.
-- The scene must be shared with other players on Discord first so that everyone sees the same things and has the same atoms. Otherwise, you can assume the default scene is used.
+- The scene must be shared with other players on Discord first so that everyone sees the same things and has the same atoms. Otherwise, you can assume the default scene is used. Remember to download all dependencies for the scene.
 - Plugins also don't sync if you modify them, except for plugins like AutoThruster (as it moves the atoms)
 
 ### Syncing

@@ -52,7 +52,7 @@ func main() {
 	// Register the messageCreate func as a callback for MessageCreate events.
 	dg.AddHandler(messageCreate)
 	// In this example, we only care about receiving message events.
-	dg.Identify.Intents = discordgo.IntentsGuildMessages
+	dg.Identify.Intents = discordgo.IntentsGuildMessages | discordgo.IntentsDirectMessages
 
 	// Open a websocket connection to Discord and begin listening.
 	err = dg.Open()
@@ -85,6 +85,19 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 
 	// Check if the message starts with "/register"
 	if strings.HasPrefix(m.Content, "/register") {
+		st, err := s.Channel(m.ChannelID)
+		if err != nil {
+			fmt.Println("Error retrieving Channel type")
+			return
+		}
+
+		if st.Type != discordgo.ChannelTypeDM {
+			fmt.Println("/register command sent not in DM - ignoring")
+			s.ChannelMessageSend(m.ChannelID, "Send /register commands via DM only.")
+			return
+		}
+
+		// Command /register received via DM
 		parts := strings.Split(m.Content, " ")
 		if len(parts) == 2 {
 			if (isValidIP(parts[1])) {
@@ -112,8 +125,8 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 		// Respond with detailed usage info for any other message
 		url := "https://www.google.com/search?q=google+what+is+my+ip"
 		text := fmt.Sprintf("Unknown command. Here are the commands you can use:\n\n" +
-		"1. `/register <IP>` - Register your IP address with the VaM multiplayer server. This will gain you entry to the server with about 2 weeks expiration. If you cannot connect to the server in VaM, register again. To find your IP, visit the link below. Link:\n%s\n\n" +
-		    "2. `/state` - Check the current game status to see who is playing. You can also see the same info in my status on Discord updated every 30s.\n\n" +
+		"1. `/register <IP>` - Register your IP address with the VaM multiplayer server via DM to the bot. This will gain you entry to the server with about 24 hour expiration. If you cannot connect to the server in VaM, register again. To find your IP, visit the link below. Link:\n%s\n\n" +
+		    "2. `/state` - Check the current game status to see who is playing. You can also see the same info in my status on Discord updated every 20s.\n\n" +
 		    "Please use one of the above commands.\n", url)
 		s.ChannelMessageSend(m.ChannelID, text)
 	}

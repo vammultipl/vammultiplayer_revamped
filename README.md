@@ -116,3 +116,46 @@ Instead:
 
 ## Additional Help
 - Visit the old MetaChat Discord or the newer VamChat Discord (another project for a full-fledged MetaChat replacement).
+
+## Tips
+https://ko-fi.com/vammultipl
+Thanks!
+
+## Credits
+Original plugin:
+[VaM Multiplayer Plugin by vamrobot](https://github.com/vamrobot/vammultiplayer)
+
+Sample scene:
+```
+AcidBubbles.ColliderEditor.36                 By: AcidBubbles          License: CC BY-SA        Link: https://github.com/acidbubbles/vam-collider-editor
+AcidBubbles.Embody.58                         By: AcidBubbles          License: CC BY-SA        Link: https://github.com/acidbubbles/vam-embody
+AcidBubbles.Embody.60                         By: AcidBubbles          License: CC BY-SA        Link: https://github.com/acidbubbles/vam-embody
+AcidBubbles.Timeline.283                      By: AcidBubbles          License: CC BY-SA        Link: https://github.com/acidbubbles/vam-timeline
+ascorad.asco_Expressions.latest               By: ascorad              License: CC BY           Link: https://www.patreon.com/ascorad
+Blaspheratus.Vr_sex_Cowgirl.latest            By: Blaspheratus         License: CC BY          
+DasBoot.Futa_EyeShadow_and_Liner.latest       By: DasBoot              License: CC BY          
+everlaster.FloatParamRandomizerEE.6           By: everlaster           License: CC BY-SA        Link: https://patreon.com/everlaster
+everlaster.Lumination.1                       By: everlaster           License: CC BY-SA        Link: https://github.com/everlasterVR/Lumination
+hazmhox.vammoan.22                            By: hazmhox              License: CC BY-SA       
+Hunting-Succubus.AutomaticBodySmoother.7      By: Hunting-Succubus     License: CC BY-NC-ND     Link: https://www.patreon.com/HunTingSuccuBus
+Hunting-Succubus.Enhanced_Eyes.latest         By: Hunting-Succubus     License: CC BY-NC        Link: https://www.patreon.com/HunTingSuccuBus
+incuboy.Default_Male.latest                   By: incuboy              License: CC BY          
+KyraAngel.Kyra_Tzimisce.latest                By: KyraAngel            License: CC BY          
+MacGruber.Life.10                             By: MacGruber            License: CC BY-SA        Link: https://hub.virtamate.com/resources/life.165/
+MacGruber.Life.13                             By: MacGruber            License: CC BY-SA        Link: https://hub.virtamate.com/resources/life.165/
+Redeyes.GiveMeFPS.25                          By: Redeyes              License: CC BY          
+Riddler.Eyes.latest                           By: Riddler              License: CC BY          
+Roac.Daisy.latest                             By: Roac                 License: CC BY           Link: patreon.com/Roac
+SupaRioAmateur.Basic_Earrings.latest          By: SupaRioAmateur       License: CC BY-NC-SA     Link: https://www.patreon.com/suparioamateur
+SupaRioAmateur.Layered_Nip_8K.latest          By: SupaRioAmateur       License: CC BY-NC-SA     Link: https://www.patreon.com/SupaRioAmateur
+SupaRioAmateur.Nails_as_Cloth.latest          By: SupaRioAmateur       License: CC BY-NC-SA     Link: http://patreon.com/SupaRioAmateur
+ToumeiHitsuji.DiviningRod.4                   By: ToumeiHitsuji        License: CC BY-SA       
+UrukYay.SupplementaryColliders.2              By: UrukYay              License: CC BY          
+VAMJFD.FullMouthTexturePack.latest            By: VAMJFD               License: CC BY           Link: https://www.patreon.com/vamjfd
+Vinput.AutoThruster.17                        By: Vinput               License: CC BY-SA       
+WeebU.Ange_Futa.1                             By: WeebU                License: CC BY-NC        Link: https://www.patreon.com/WeebUVR
+WeebU.Mira_Futa_Texture.latest                By: WeebU                License: CC BY-NC       
+WeebU.My_morphs.latest                        By: WeebU                License: FC              Link: https://www.patreon.com/WeebUVR
+WeebU.Sweat_gloss_maps.latest                 By: WeebU                License: CC BY-NC        Link: https://www.patreon.com/WeebUVR
+WeebU.W-Open_Heels1.latest                    By: WeebU                License: CC BY-NC        Link: https://www.patreon.com/WeebUVR
+```

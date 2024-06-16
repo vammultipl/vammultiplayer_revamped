@@ -13,6 +13,7 @@ I have launched a centralized Linux server in Azure and added simple user regist
 - Improved player movement smoothness
 - Faster connection and gameplay compared to MetaChat
 - Simplified data syncing (only necessary data - player joints)
+- Spectator mode
 
 ## Technical Details
 The client plugin:

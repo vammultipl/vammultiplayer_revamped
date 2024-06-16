@@ -20,6 +20,7 @@ class VAMMultiplayerServer:
         self.sock.bind((self.host, self.port))
         self.players = {}
         self.users = {}
+        self.player_to_user = {} # not including spectators
         self.lock = threading.Lock()
 
     def listen(self):
@@ -64,19 +65,27 @@ class VAMMultiplayerServer:
 
     def handle_request(self, client, request, address):
         parts = request.split(b";")
+        key = f"{address[0]}:{address[1]}"
         if len(parts) > 2: #assume more than one joint status is sent
 #            self.handle_new_player(client, parts[0])
 #        else:
             player_name = parts[0]
             updates = parts[1:]
+            if player_name in self.player_to_user:
+                if self.player_to_user[player_name] != key:
+                    print(f"Disconnected user {key} for trying to control already controlled player {player_name.decode()}")
+                    client.close()
+                    self.handle_disconnect(client, address)
+                    return
+
             self.handle_batch_update(client, False, player_name, updates)
 
             # Log IP and player_name changes
             with self.lock:
-                key = f"{address[0]}:{address[1]}"
                 if key not in self.users or self.users[key] != player_name:
                     self.users[key] = player_name
                     print(f"{key} now controls player {player_name.decode()}")
+                    self.player_to_user[player_name] = key
                     self.on_user_change()
         else:
             if request == b"S":
@@ -84,7 +93,6 @@ class VAMMultiplayerServer:
                 self.handle_batch_update(client, True, None, None)
                 # Log IP for spectator
                 with self.lock:
-                    key = f"{address[0]}:{address[1]}"
                     player_name = b"@SPECTATOR@" # can be multiple spectators
                     if key not in self.users or self.users[key] != player_name:
                         self.users[key] = player_name
@@ -144,6 +152,8 @@ class VAMMultiplayerServer:
                 player_name = self.users[key]
                 if player_name in self.players:
                     del self.players[player_name]
+                if player_name in self.player_to_user:
+                    del self.player_to_user[player_name]
                 del self.users[key]
                 self.on_user_change()
 

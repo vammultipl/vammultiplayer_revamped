@@ -861,7 +861,7 @@ Syncing:
 		catch (Exception ex)
 		{
 			SuperController.LogError("Exception: " + ex.Message);
-			diagnosticsTextField.text += "Error: server disconnected. Try to re-register via Discord bot.\n";
+			diagnosticsTextField.text += "Error: server disconnected. Try to re-register via Discord bot. Or did you try controlling an already controlled look?\n";
 			client?.Close();
 			client = null;
 			throw;

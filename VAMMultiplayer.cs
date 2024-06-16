@@ -141,7 +141,7 @@ namespace vamrobotics
                // updateFrequencies.Add("60.0");
                // updateFrequencies.Add("75.0");
                 //updateFrequencies.Add("500.0");
-                updateFrequencyChooser = new JSONStorableStringChooser("Update Frequency Chooser", updateFrequencies, updateFrequencies[2], "Update Frequency", UpdateFrequencyChooserCallback);
+                updateFrequencyChooser = new JSONStorableStringChooser("Update Frequency Chooser", updateFrequencies, updateFrequencies[3], "Update Frequency", UpdateFrequencyChooserCallback);
                 RegisterStringChooser(updateFrequencyChooser);
                 CreatePopup(updateFrequencyChooser);
 

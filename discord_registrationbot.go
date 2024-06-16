@@ -85,6 +85,18 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 	if m.Author.ID == s.State.User.ID {
 		return
 	}
+
+	// Retrieve channel information
+	channel, err := s.Channel(m.ChannelID)
+	if err != nil {
+		fmt.Println("Error getting channel info: ", err)
+		return
+	}
+
+	// Ignore messages in #general
+	if channel.Name == "general" {
+		return
+	}
 	fmt.Println("Got message: ", m.Content)
 
 	// Check if the message starts with "/register"

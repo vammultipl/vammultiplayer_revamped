@@ -27,6 +27,12 @@ class VAMMultiplayerServer:
         while True:
             client, address = self.sock.accept()
             print(f"New connection from {address[0]}:{address[1]}")
+            # Load IP allowlist fresh
+            allowlist = self.load_allowlist('allowlist.txt')
+            if address[0] not in allowlist:
+                print(f"Connection from {address[0]}:{address[1]} rejected: IP not in allowlist")
+                client.close()
+                continue
             client.settimeout(90)
             threading.Thread(target=self.client_connection, args=(client, address)).start()
 
@@ -43,6 +49,18 @@ class VAMMultiplayerServer:
         finally:
             self.handle_disconnect(client, address)
             client.close()
+
+    def load_allowlist(self, filename):
+        allowlist = set()
+        try:
+            with open(filename, 'r') as file:
+                for line in file:
+                    parts = line.strip().split()
+                    if len(parts) == 2:
+                        allowlist.add(parts[0])
+        except FileNotFoundError:
+            print(f"Allowlist file {filename} not found.")
+        return allowlist
 
     def handle_request(self, client, request, address):
         parts = request.split(b";")

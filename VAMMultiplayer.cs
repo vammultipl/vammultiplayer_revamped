@@ -279,7 +279,7 @@ namespace vamrobotics
 4. Check player status in the plugin window or via the Discord bot.
 5. If disconnected immediately, register your IP with the Discord bot. Registrations last 24h.
 6. You also get disconnected if selected Player is already controlled. Select a different one and reconnect.
-7. Avoid changing Update Frequency or Updateable Targets. If lag occurs, try 25ms or 30ms Frequency.
+7. Avoid changing Update Frequency or Updateable Targets. If FPS drops severely after connecting, try switching to 15Hz Frequency.
 
 Tips:
 - If you encounter issues, click Disconnect and Connect again.

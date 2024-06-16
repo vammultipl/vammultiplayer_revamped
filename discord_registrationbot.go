@@ -19,8 +19,11 @@ var (
 	token          string
 	filePath       = "allowlist.txt" // user IP allowlist
 	expirationTime = 24 * 1 * time.Hour // 24hr expiration
-	mutex          sync.Mutex // Mutex to protect access to the allowlist file
+	allowlistMutex          sync.Mutex // Mutex to protect access to the allowlist file
 	prevPlayerStatus string = ""
+	monitoredChannels = make(map[string]time.Time) // monitoring enabled channels by /monitor command
+	mu               sync.Mutex // mutex protecting monitoredChannels
+	monitorMaxHours int = 16 // monitor for max 16 hours
 )
 
 func main() {
@@ -121,15 +124,56 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 			return
 		}
 		s.ChannelMessageSend(m.ChannelID, gameStatus)
+	} else if strings.HasPrefix(m.Content, "/monitor") {
+		handleMonitorCommand(s, m)
 	} else {
 		// Respond with detailed usage info for any other message
 		url := "https://www.google.com/search?q=google+what+is+my+ip"
 		text := fmt.Sprintf("Unknown command. Here are the commands you can use:\n\n" +
 		"1. `/register <IP>` - Register your IP address with the VaM multiplayer server via DM to the bot. This will gain you entry to the server with about 24 hour expiration. If you cannot connect to the server in VaM, register again. To find your IP, visit the link below. Link:\n%s\n\n" +
 		    "2. `/state` - Check the current game status to see who is playing. You can also see the same info in my status on Discord updated every 20s.\n\n" +
+		    "3. `/monitor <hours>` - Enable monitoring for game status changes on this channel for X hours (useful for notifications)\n\n" +
 		    "Please use one of the above commands.\n", url)
 		s.ChannelMessageSend(m.ChannelID, text)
 	}
+}
+
+// handleMonitorCommand handles the /monitor <hours> command
+func handleMonitorCommand(s *discordgo.Session, m *discordgo.MessageCreate) {
+	st, err := s.Channel(m.ChannelID)
+	if err != nil {
+		fmt.Println("Error retrieving Channel type")
+		return
+	}
+
+	if st.Type == discordgo.ChannelTypeDM {
+		fmt.Println("/monitor command sent in DM - ignoring")
+		s.ChannelMessageSend(m.ChannelID, "The /monitor command can only be used in a server channel.")
+		return
+	}
+
+	// Parse the command
+	var hours int
+	_, err = fmt.Sscanf(m.Content, "/monitor %d", &hours)
+	if err != nil || hours <= 0 {
+		s.ChannelMessageSend(m.ChannelID, "Usage: /monitor <hours>")
+		return
+	}
+	if hours > monitorMaxHours {
+		text := fmt.Sprintf("You can only monitor for maximum %d hours.", monitorMaxHours)
+		s.ChannelMessageSend(m.ChannelID, text)
+		return
+	}
+
+	// Calculate the expiration time
+	expiryTime := time.Now().Add(time.Duration(hours) * time.Hour)
+
+	// Update the monitored channels map
+	mu.Lock()
+	monitoredChannels[m.ChannelID] = expiryTime
+	mu.Unlock()
+
+	s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("Monitoring this channel for %d hours.", hours))
 }
 
 // getCurrentGameStatus reads the last line of the file to get the current game status
@@ -249,10 +293,13 @@ func startPlayerStateMonitor(s *discordgo.Session) {
 func updatePlayerStatus(s *discordgo.Session) {
 	gameStatus, err := getCurrentGameStatus()
 	if err == nil {
-		if len(gameStatus) > 125 {
-			gameStatus = "Send /state command to check the state of rooms"
-		}
 		if gameStatus != prevPlayerStatus {
+			updateMonitoredChannelsWithStatus(s, gameStatus)
+			// Discord limitation on status length
+			if len(gameStatus) > 125 {
+				s.UpdateCustomStatus("Send /state command to check the state of rooms")
+				return
+			}
 			err := s.UpdateCustomStatus(gameStatus)
 			if err != nil {
 				fmt.Println("error updating custom status", err)
@@ -264,9 +311,23 @@ func updatePlayerStatus(s *discordgo.Session) {
 	}
 }
 
+func updateMonitoredChannelsWithStatus(dg *discordgo.Session, currentState string) {
+	mu.Lock()
+	defer mu.Unlock()
+
+	now := time.Now()
+	for channelID, expiry := range monitoredChannels {
+		if now.Before(expiry) {
+			dg.ChannelMessageSend(channelID, currentState)
+		} else {
+			delete(monitoredChannels, channelID)
+		}
+	}
+}
+
 func registerIP(ip string) {
-	mutex.Lock()
-	defer mutex.Unlock()
+	allowlistMutex.Lock()
+	defer allowlistMutex.Unlock()
 
 	currentTime := time.Now().Unix()
 	var updatedLines []string
@@ -319,8 +380,8 @@ func registerIP(ip string) {
 
 func cleanupExpiredIPs() {
 	fmt.Println("Cleaning up expired IPs")
-	mutex.Lock()
-	defer mutex.Unlock()
+	allowlistMutex.Lock()
+	defer allowlistMutex.Unlock()
 
 	currentTime := time.Now().Unix()
 	var updatedLines []string

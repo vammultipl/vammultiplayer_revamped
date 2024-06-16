@@ -7,8 +7,8 @@ This project expands on vamrobot's VaM Multiplayer Plugin:
 I have launched a centralized Linux server in Azure and added simple user registration via a Discord bot, eliminating the need for complex VPN or tunneling setups. This makes the plugin as easy to use as the MetaChat plugin.
 
 ### New Features
-- Centralized server with Azure
-- Simple user registration via Discord bot
+- Centralized server
+- Simple user registration and lobby monitoring via Discord bot
 - Enhanced performance and optimization
 - Improved player movement smoothness
 - Faster connection and gameplay compared to MetaChat
@@ -101,6 +101,18 @@ If you want to host everything yourself, you can recreate this setup easily:
 
 ## Known Issues
 - "Player connected/disconnected" messages in plugin window are wonky and not always correct. Discord bot statuses are always correct, updated every 20s.
+- If you add more plugins to the scene or atoms, FPS might drop a lot because the multiplayer plugin blocks on TCP connection in FixedUpdate() which may degrade performance of other scripts. This performance degradation might be even worse if you are far from the server (currently EU based). This issue will be fixed in another release.
+
+## TL;DR I came from Metachat - how do I use this?
+MetaChat had web registration, lobbies with visible scenes, an in-game menu to synchronize other people's looks, and also a chat. This has none of that.
+Instead:
+- registration is via Discord bot: `/register <your_IP>`
+- to check who's playing - ask Discord bot or register for notifications
+- scene is pre-shared and all players in a lobby should load the same one
+- ONLY players joints are synced - plugins, looks, clothing, toys DO NOT SYNC. Others won't see changes.
+- On the up side, no one can make your VaM freeze for 3 minutes by loading a complicated look
+- to play: open plugin settings, select your Atom, click Connect :)
+- chat is via Discord :)
 
 ## Additional Help
 - Visit the old MetaChat Discord or the newer VamChat Discord (another project for a full-fledged MetaChat replacement).

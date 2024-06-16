@@ -44,7 +44,7 @@ The client plugin is a single `VAMMultiplayer.cs` file which can be added to any
    - If disconnected immediately, register your IP with the Discord bot. Registrations last 24h.
    - Server might also disconnect you if selected Player is already controlled. Select a different one and reconnect.
 4. **Settings:**
-   - Avoid changing Update Frequency or Updateable Targets. If lag occurs, try 25ms or 30ms Frequency.
+   - Avoid changing Update Frequency or Updateable Targets. If FPS drops severely after connecting, try switching to 15Hz Frequency.
 
 ### Tips
 - If you encounter issues, click Disconnect and Connect again.
@@ -100,7 +100,7 @@ If you want to host everything yourself, you can recreate this setup easily:
 - IPs not in the allowlist managed by the Discord bot are immediately disconnected.
 
 ## Known Issues
-- "Player connected/disconnected" messages in plugin window are wonky and not always correct. Discord bot statuses are always correct, updated every 30s.
+- "Player connected/disconnected" messages in plugin window are wonky and not always correct. Discord bot statuses are always correct, updated every 20s.
 
 ## Additional Help
 - Visit the old MetaChat Discord or the newer VamChat Discord (another project for a full-fledged MetaChat replacement).

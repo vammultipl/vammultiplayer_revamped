@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"fmt"
+	"log"
 	"os"
 	"os/signal"
 	"regexp"
@@ -31,7 +32,7 @@ func main() {
 	// Read the bot token from a file
 	tokenFile, err := os.Open("token.txt")
 	if err != nil {
-		fmt.Println("error opening token file,", err)
+		log.Println("error opening token file,", err)
 		return
 	}
 	defer tokenFile.Close()
@@ -41,7 +42,7 @@ func main() {
 		token = scanner.Text()
 	}
 	if err := scanner.Err(); err != nil {
-		fmt.Println("error reading token file,", err)
+		log.Println("error reading token file,", err)
 		return
 	}
 	trimmedToken := strings.TrimSpace(token)
@@ -49,7 +50,7 @@ func main() {
 	// Create a new Discord session using the provided bot token.
 	dg, err := discordgo.New("Bot " + trimmedToken)
 	if err != nil {
-		fmt.Println("error creating Discord session,", err)
+		log.Println("error creating Discord session,", err)
 		return
 	}
 
@@ -61,7 +62,7 @@ func main() {
 	// Open a websocket connection to Discord and begin listening.
 	err = dg.Open()
 	if err != nil {
-		fmt.Println("error opening connection,", err)
+		log.Println("error opening connection,", err)
 		return
 	}
 
@@ -70,7 +71,7 @@ func main() {
 	// Goroutine to poll for player state changes and update status
 	go startPlayerStateMonitor(dg)
 
-	fmt.Println("Bot is now running. Press CTRL+C to exit.")
+	log.Println("Bot is now running. Press CTRL+C to exit.")
 	// Wait here until CTRL+C or other term signal is received.
 	sc := make(chan os.Signal, 1)
 	signal.Notify(sc, syscall.SIGINT, syscall.SIGTERM, os.Interrupt, os.Kill)
@@ -89,7 +90,7 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 	// Retrieve channel information
 	channel, err := s.Channel(m.ChannelID)
 	if err != nil {
-		fmt.Println("Error getting channel info: ", err)
+		log.Println("Error getting channel info: ", err)
 		return
 	}
 
@@ -97,18 +98,18 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 	if channel.Name == "general" {
 		return
 	}
-	fmt.Println("Got message: ", m.Content)
+	log.Println("Got message: ", m.Content)
 
 	// Check if the message starts with "/register"
 	if strings.HasPrefix(m.Content, "/register") {
 		st, err := s.Channel(m.ChannelID)
 		if err != nil {
-			fmt.Println("Error retrieving Channel type")
+			log.Println("Error retrieving Channel type")
 			return
 		}
 
 		if st.Type != discordgo.ChannelTypeDM {
-			fmt.Println("/register command sent not in DM - ignoring")
+			log.Println("/register command sent not in DM - ignoring")
 			s.ChannelMessageSend(m.ChannelID, "Send /register commands via DM only.")
 			return
 		}
@@ -121,24 +122,24 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 				// register IP in allowlist txt file and file with IP to username mapping
 				err := registerIP(ip, m.Author.Username)
 				if err != nil {
-					fmt.Println("error: failed to register IP: ", ip)
+					log.Println("error: failed to register IP: ", ip)
 					s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("Failed to register IP"))
 					return
 				}
-				fmt.Println("Registered IP: ", ip)
+				log.Println("Registered IP: ", ip)
 				s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("Your IP address %s has been successfully registered/refreshed. You can now connect to the game.", ip))
 			} else {
-				fmt.Println("Register: invalid IP: ", parts[1])
+				log.Println("Register: invalid IP: ", parts[1])
 				s.ChannelMessageSend(m.ChannelID, "Invalid IP address format. Please use /register 123.45.67.89")
 			}
 		} else {
-			fmt.Println("Invalid command: ", m.Content)
+			log.Println("Invalid command: ", m.Content)
 			s.ChannelMessageSend(m.ChannelID, "Invalid command or IP address format. Please use /register 123.45.67.89")
 		}
 	} else if strings.HasPrefix(m.Content, "/state") {
 		gameStatus, err := getCurrentGameStatus()
 		if err != nil {
-			fmt.Println("Error reading game status: ", err)
+			log.Println("Error reading game status: ", err)
 			s.ChannelMessageSend(m.ChannelID, "Error retrieving game status.")
 			return
 		}
@@ -161,12 +162,12 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 func handleMonitorCommand(s *discordgo.Session, m *discordgo.MessageCreate) {
 	st, err := s.Channel(m.ChannelID)
 	if err != nil {
-		fmt.Println("Error retrieving Channel type")
+		log.Println("Error retrieving Channel type")
 		return
 	}
 
 	if st.Type == discordgo.ChannelTypeDM {
-		fmt.Println("/monitor command sent in DM - ignoring")
+		log.Println("/monitor command sent in DM - ignoring")
 		s.ChannelMessageSend(m.ChannelID, "The /monitor command can only be used in a server channel.")
 		return
 	}
@@ -359,12 +360,12 @@ func updatePlayerStatus(s *discordgo.Session) {
 			}
 			err := s.UpdateCustomStatus(gameStatus)
 			if err != nil {
-				fmt.Println("error updating custom status", err)
+				log.Println("error updating custom status", err)
 			}
 			prevPlayerStatus = gameStatus
 		}
 	} else {
-		fmt.Println("error getting game status", err)
+		log.Println("error getting game status", err)
 	}
 }
 
@@ -389,7 +390,7 @@ func registerIP(ip string, username string) error {
 	// Add IP-username mapping in file
 	fileUsernames, err := os.OpenFile(usernamesFile, os.O_RDWR|os.O_CREATE, 0644)
 	if err != nil {
-		fmt.Println("error opening usernames file,", err)
+		log.Println("error opening usernames file,", err)
 		return err
 	}
 	defer fileUsernames.Close()
@@ -419,7 +420,7 @@ func registerIP(ip string, username string) error {
 	}
 
 	if err := scanner.Err(); err != nil {
-		fmt.Println("error reading usernames file,", err)
+		log.Println("error reading usernames file,", err)
 		return err
 	}
 
@@ -429,7 +430,7 @@ func registerIP(ip string, username string) error {
 	for _, line := range updatedLinesUsernames {
 		_, err := fileUsernames.WriteString(line + "\n")
 		if err != nil {
-			fmt.Println("error writing to usernames file,", err)
+			log.Println("error writing to usernames file,", err)
 			return err
 		}
 	}
@@ -441,7 +442,7 @@ func registerIP(ip string, username string) error {
 
 	fileAllowlist, err := os.OpenFile(allowlistFile, os.O_RDWR|os.O_CREATE, 0644)
 	if err != nil {
-		fmt.Println("error opening allowlist file,", err)
+		log.Println("error opening allowlist file,", err)
 		return err
 	}
 	defer fileAllowlist.Close()
@@ -469,7 +470,7 @@ func registerIP(ip string, username string) error {
 	}
 
 	if err := scanner.Err(); err != nil {
-		fmt.Println("error reading allowlist file,", err)
+		log.Println("error reading allowlist file,", err)
 		return err
 	}
 
@@ -479,7 +480,7 @@ func registerIP(ip string, username string) error {
 	for _, line := range updatedLinesAllowlist {
 		_, err := fileAllowlist.WriteString(line + "\n")
 		if err != nil {
-			fmt.Println("error writing to allowlist file,", err)
+			log.Println("error writing to allowlist file,", err)
 			return err
 		}
 	}
@@ -488,7 +489,7 @@ func registerIP(ip string, username string) error {
 }
 
 func cleanupExpiredIPs() {
-	fmt.Println("Cleaning up expired IPs")
+	log.Println("Cleaning up expired IPs")
 	allowlistMutex.Lock()
 	defer allowlistMutex.Unlock()
 
@@ -499,7 +500,7 @@ func cleanupExpiredIPs() {
 
 	file, err := os.OpenFile(allowlistFile, os.O_RDWR|os.O_CREATE, 0644)
 	if err != nil {
-		fmt.Println("error opening allowlist file,", err)
+		log.Println("error opening allowlist file,", err)
 		return
 	}
 	defer file.Close()
@@ -520,13 +521,13 @@ func cleanupExpiredIPs() {
 		if currentTime-timestamp <= int64(expirationTime.Seconds()) {
 			updatedLines = append(updatedLines, line)
 		} else {
-			fmt.Printf("Expired IP removed: %s\n", ip)
+			log.Printf("Expired IP removed: %s\n", ip)
 			expiredIPs[ip] = struct{}{}
 		}
 	}
 
 	if err := scanner.Err(); err != nil {
-		fmt.Println("error reading allowlist file,", err)
+		log.Println("error reading allowlist file,", err)
 		return
 	}
 
@@ -536,7 +537,7 @@ func cleanupExpiredIPs() {
 	for _, line := range updatedLines {
 		_, err := file.WriteString(line + "\n")
 		if err != nil {
-			fmt.Println("error writing to allowlist file,", err)
+			log.Println("error writing to allowlist file,", err)
 		}
 	}
 
@@ -549,7 +550,7 @@ func cleanupExpiredIPs() {
 	var updatedLinesUsernames []string
 	fileUsernames, err := os.OpenFile(usernamesFile, os.O_RDWR|os.O_CREATE, 0644)
 	if err != nil {
-		fmt.Println("error opening usernames file,", err)
+		log.Println("error opening usernames file,", err)
 		return
 	}
 	defer fileUsernames.Close()
@@ -570,7 +571,7 @@ func cleanupExpiredIPs() {
 	}
 
 	if err := scanner.Err(); err != nil {
-		fmt.Println("error reading usernames file,", err)
+		log.Println("error reading usernames file,", err)
 		return
 	}
 
@@ -580,7 +581,7 @@ func cleanupExpiredIPs() {
 	for _, line := range updatedLinesUsernames {
 		_, err := fileUsernames.WriteString(line + "\n")
 		if err != nil {
-			fmt.Println("error writing to usernames file,", err)
+			log.Println("error writing to usernames file,", err)
 			return
 		}
 	}

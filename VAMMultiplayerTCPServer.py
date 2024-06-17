@@ -8,6 +8,7 @@ import socket
 import threading
 import sys
 import time
+import logging
 
 class VAMMultiplayerServer:
     def __init__(self, host, port):
@@ -27,11 +28,11 @@ class VAMMultiplayerServer:
         self.sock.listen(5)  # Only expecting up to five players.
         while True:
             client, address = self.sock.accept()
-            print(f"New connection from {address[0]}:{address[1]}")
+            logging.info(f"New connection from {address[0]}:{address[1]}")
             # Load IP allowlist fresh
             allowlist = self.load_allowlist('allowlist.txt')
             if address[0] not in allowlist:
-                print(f"Connection from {address[0]}:{address[1]} rejected: IP not in allowlist")
+                logging.info(f"Connection from {address[0]}:{address[1]} rejected: IP not in allowlist")
                 client.close()
                 continue
             client.settimeout(90)
@@ -46,7 +47,7 @@ class VAMMultiplayerServer:
                 if request.endswith(b"|"):
                     self.handle_request(client, request[:-1], address)
         except Exception as e:
-            print(f"Error from {address[0]}:{address[1]} :{e}")
+            logging.info(f"Error from {address[0]}:{address[1]} :{e}")
         finally:
             self.handle_disconnect(client, address)
             client.close()
@@ -60,7 +61,7 @@ class VAMMultiplayerServer:
                     if len(parts) == 2:
                         allowlist.add(parts[0])
         except FileNotFoundError:
-            print(f"Allowlist file {filename} not found.")
+            logging.error(f"Allowlist file {filename} not found.")
         return allowlist
 
     def handle_request(self, client, request, address):
@@ -73,7 +74,7 @@ class VAMMultiplayerServer:
             updates = parts[1:]
             if player_name in self.player_to_user:
                 if self.player_to_user[player_name] != key:
-                    print(f"Disconnected user {key} for trying to control already controlled player {player_name.decode()}")
+                    logging.info(f"Disconnected user {key} for trying to control already controlled player {player_name.decode()}")
                     client.close()
                     self.handle_disconnect(client, address)
                     return
@@ -84,7 +85,7 @@ class VAMMultiplayerServer:
             with self.lock:
                 if key not in self.users or self.users[key] != player_name:
                     self.users[key] = player_name
-                    print(f"{key} now controls player {player_name.decode()}")
+                    logging.info(f"{key} now controls player {player_name.decode()}")
                     self.player_to_user[player_name] = key
                     self.on_user_change()
         else:
@@ -96,10 +97,10 @@ class VAMMultiplayerServer:
                     player_name = b"@SPECTATOR@" # can be multiple spectators
                     if key not in self.users or self.users[key] != player_name:
                         self.users[key] = player_name
-                        print(f"{key} is now a SPECTATOR")
+                        logging.info(f"{key} is now a SPECTATOR")
                         self.on_user_change()
             else:
-                print(f"Error: got malformed input: {request.decode()}")
+                logging.error(f"Error: got malformed input: {request.decode()}")
 
 #    def handle_new_player(self, client, player_name):
 #        with self.lock:
@@ -116,9 +117,9 @@ class VAMMultiplayerServer:
                 # Ensure player exists
                 if player_name not in self.players:
                     if len(self.players) > 4:
-                        print(f"Error: already more than 4 players when trying to add Player with name: {player_name.decode()}")
+                        logging.error(f"Error: already more than 4 players when trying to add Player with name: {player_name.decode()}")
                         return
-                    print(f"Adding new player: {player_name.decode()}")
+                    logging.info(f"Adding new player: {player_name.decode()}")
                     self.players[player_name] = {}
                 # Update positions and rotations for the player
                 for update in updates:
@@ -128,7 +129,7 @@ class VAMMultiplayerServer:
                         position_data = b",".join(data[1:])
                         self.players[player_name][target_name] = position_data
                     else:
-                        print(f"Error: got malformed input (len: {len(data)}, updateStr: {update}, update: {update.decode()}")
+                        logging.error(f"Error: got malformed input (len: {len(data)}, updateStr: {update}, update: {update.decode()}")
 
             # Prepare response with all other players' joint data
             response = []
@@ -145,10 +146,10 @@ class VAMMultiplayerServer:
     def handle_disconnect(self, client, address):
         # Log disconnect details
         key = f"{address[0]}:{address[1]}"
-        print(f"Client disconnected from {key}")
+        logging.info(f"Client disconnected from {key}")
         with self.lock:
             if key in self.users:
-                print(f"Client {key} stopped controlling {self.users[key].decode()}")
+                logging.info(f"Client {key} stopped controlling {self.users[key].decode()}")
                 player_name = self.users[key]
                 if player_name in self.players:
                     del self.players[player_name]
@@ -167,17 +168,20 @@ class VAMMultiplayerServer:
 def main():
     host = "0.0.0.0"
     port = 8888  # Default port
+    logging.basicConfig(level=logging.DEBUG,
+                        format='%(asctime)s - %(levelname)s - %(message)s',
+                        datefmt='%Y-%m-%d %H:%M:%S')
 
     # Check for command line arguments for port
     if len(sys.argv) > 1:
         try:
             port = int(sys.argv[1])
         except ValueError:
-            print("Invalid port number. Using default port 8888.")
+            logging.error("Invalid port number. Using default port 8888.")
 
-    print("VAM Multiplayer Server running:")
-    print(f"IP: {host}")
-    print(f"Port: {port}")
+    logging.info("VAM Multiplayer Server running:")
+    logging.info(f"IP: {host}")
+    logging.info(f"Port: {port}")
     VAMMultiplayerServer(host, port).listen()
 
 if __name__ == "__main__":

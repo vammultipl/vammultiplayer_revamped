@@ -19,7 +19,17 @@ namespace vamrobotics
 {
     class VAMMultiplayer : MVRScript
     {
-        private Socket client;
+        //private Socket client;
+        private TcpClient tcpClient;
+        private NetworkStream stream;
+        private Queue<long> sendTimes = new Queue<long>();
+        private long ticksSinceLastSend = 0;
+        private long sendIntervalTicks = 5; // Initial interval in ticks
+        private long latencyTicks = 10; // Initial latency guess
+        private long fixedUpdateCounter = 0;
+        private byte[] receiveBuffer = new byte[65535];
+        private bool receiveOngoing = false;
+        private StringBuilder responseBuilder = new StringBuilder();
 
         protected JSONStorableStringChooser playerChooser;
         protected JSONStorableStringChooser serverChooser;
@@ -71,7 +81,7 @@ namespace vamrobotics
         private List<string> playerList;
         private List<string> onlinePlayers;
         private List<Player> players;
-        private Stopwatch sw = Stopwatch.StartNew();
+        //private Stopwatch sw = Stopwatch.StartNew();
 
 	    private static string[] shortTargetNames = new string[] {
         "c", "Hc", "pc", "cc", "hc", "rh", "lh", "rf", "lf", "nc", "et", "rn", "ln",
@@ -295,6 +305,7 @@ Syncing:
                 instructionsTextField = CreateTextField(instructions, true);
 		instructionsTextField.height = 600f;
 		instructionsTextField.text += instructionsStr;
+
             }
             catch (Exception e)
             {
@@ -321,214 +332,385 @@ Syncing:
 		}
 		return shortTargetNames[index];
 	    }
+
+        protected StringBuilder PrepareRequest()
+        {
+                // Prepare batched message for sending updates
+                StringBuilder batchedMessage = new StringBuilder(playerChooser.val + ";");
+                string initialMessage = batchedMessage.ToString();
+
+                // Prepare message with controlled players joints, unless spectator mode is on
+                if (!spectatorModeBool.val)
+                {
+                    // Collecting updates to send
+                    Atom playerAtom = SuperController.singleton.GetAtomByUid(playerChooser.val);
+
+                    // Find correct player in the List
+                    int playerIndex = players.FindIndex(p => p.playerName == playerChooser.val);
+                    if (playerIndex != -1 && tcpClient != null)
+                    {
+                        Player player = players[playerIndex];
+
+                        // Update only changed target positions and rotations for the main player
+                        foreach (Player.TargetData target in player.playerTargets)
+                        {
+                            if (CheckIfTargetIsUpdateable(target.targetName))
+                            {
+                                FreeControllerV3 targetObject = playerAtom.GetStorableByID(target.targetName) as FreeControllerV3;
+
+                                if (targetObject != null)
+                                {
+                                //if (targetObject.transform.position != target.positionOld || targetObject.transform.rotation != target.rotationOld)
+                                {
+                                    // Append main player's target position and rotation data to the batched message
+                                    // TODO: if value < 0.00001, round down to 0 to save space
+                                    
+                                    // Optimize transfer - use shortened targetname
+                                    string shortTargetName = "";
+                                    try
+                                    {
+                                        shortTargetName = TargetLongToShortName(target.targetName);
+                                    }
+                                    catch (Exception ex)
+                                    {
+                                        SuperController.LogError("Exception caught: " + ex.Message);
+                                    }
+                                    batchedMessage.Append($"{shortTargetName},{targetObject.transform.position.x},{targetObject.transform.position.y},{targetObject.transform.position.z},{targetObject.transform.rotation.w},{targetObject.transform.rotation.x},{targetObject.transform.rotation.y},{targetObject.transform.rotation.z};");
+
+                                    // Update the 'Old' position and rotation data
+                                    if (positionsBool.val)
+                                    {
+                                    target.positionOld = targetObject.transform.position;
+                                    }
+
+                                    if (rotationsBool.val)
+                                    {
+                                    target.rotationOld = targetObject.transform.rotation;
+                                    }
+                                } 
+                                } else {
+                                    ;//SuperController.LogError("TARGETOBJECT NULL 302");
+                                }
+                            }
+                        }
+                    } else
+                    {
+                        ;//SuperController.LogError("PLAYER NOT FOUND");
+                    }
+                } else
+                {
+                    // message indicating spectator mode
+                    // no data is sent in request, we just want the response with all the other players data
+                    batchedMessage.Length = 0; // clear string
+                    batchedMessage.Append("S");
+                }
+
+                if (batchedMessage.ToString() == initialMessage)
+                {
+                    batchedMessage.Length = 0; // clear string
+                }
+                return batchedMessage;
+        }
+        protected void SendRequestToServer()
+        {
+            // Gather quaternions of player (or empty spectator request) and assemble the message
+            StringBuilder batchedMessage = PrepareRequest();
+
+            // Send the batched message if there are updates
+            if (batchedMessage.Length <= 0 || tcpClient == null)
+            {
+                return;
+            }
+
+            try
+            {
+                // Remove the last character (trailing semicolon)
+                if (batchedMessage[batchedMessage.Length - 1] == ';')
+                {
+                    batchedMessage.Remove(batchedMessage.Length - 1, 1);
+                }
+                String request = batchedMessage.ToString() + "|";
+                if (stream != null && stream.CanWrite)
+                {
+                    byte[] data = Encoding.ASCII.GetBytes(request);
+
+                    // start point for RTT latency calculation
+                    // we use fixed counter for time measurement instead of timers or stopwatches
+                    sendTimes.Enqueue(fixedUpdateCounter);
+                    stream.BeginWrite(data, 0, data.Length, new AsyncCallback(OnSend), null);
+                }
+            }
+            catch (SocketException ex)
+            {
+                // Handle the socket exception
+                SuperController.LogError("SocketException caught: " + ex.Message);
+            }
+            catch (Exception ex)
+            {
+                // Handle other exceptions
+                SuperController.LogError("Exception caught: " + ex.Message);
+            }
+        }
+        private void OnSend(IAsyncResult ar)
+        {
+            try
+            {
+                // TODO check result if everything was sent
+                stream.EndWrite(ar);
+            }
+            catch (Exception ex)
+            {
+                diagnosticsTextField.text += "Error: server disconnected. Try to re-register via Discord bot. Or did you try controlling an already controlled look?\n";
+                tcpClient?.Close();
+                tcpClient = null;
+                stream = null;
+                SuperController.LogError("Send error - exception: " + ex.Message);
+                ClearState();
+            }
+        }
+        protected void ReceiveResponse()
+        {
+            if (stream == null) //&& stream.DataAvailable)
+            {
+                return;
+            }
+
+            if (!receiveOngoing)
+            {
+                receiveOngoing = true;
+                stream.BeginRead(receiveBuffer, 0, receiveBuffer.Length, OnReceiveComplete, null);
+            }
+        }
+        private void OnReceiveComplete(IAsyncResult result)
+        {
+            if (stream == null)
+            {
+                SuperController.LogError("stream null in OnReceiveComplete");
+                return;
+            }
+
+            int bytesRead = 0;
+            try
+            {
+                bytesRead = stream.EndRead(result);
+            }
+            catch (Exception ex)
+            {
+                diagnosticsTextField.text += "Error: server disconnected. Try to re-register via Discord bot. Or did you try controlling an already controlled look?\n";
+                tcpClient?.Close();
+                tcpClient = null;
+                stream = null;
+                SuperController.LogError("Receive error - exception: " + ex.Message);
+                ClearState();
+                return;
+            }
+            if (bytesRead == 0)
+            {
+                diagnosticsTextField.text += "Error: server disconnected. Try to re-register via Discord bot. Or did you try controlling an already controlled look?\n";
+                tcpClient?.Close();
+                tcpClient = null;
+                stream = null;
+                ClearState();
+                return;
+            }
+
+            byte[] receivedBytes = new byte[bytesRead];
+            Array.Copy(receiveBuffer, receivedBytes, bytesRead);
+
+            responseBuilder.Append(Encoding.UTF8.GetString(receivedBytes));
+            string responseStr = responseBuilder.ToString();
+            if (!responseStr.Contains("|"))
+            {
+                // have not assembled full message yet
+                receiveOngoing = false;
+                return;
+            }
+            // we have a termination symbol "|" in message
+            responseBuilder.Length = 0; // clear responseBuilder
+            string partialMsg = string.Empty;
+            int endIndex = responseStr.LastIndexOf("|");
+            if ((endIndex + 1) != responseStr.Length)
+            {
+                // we have "|" in message but last character is not "|", save the partial message
+                partialMsg = responseStr.Substring(endIndex + 1);
+            }
+            responseBuilder.Append(partialMsg);
+
+            // Split the string by the "|" terminator
+            // if there was a partial msg at the end - we skip it
+            string[] messages = responseStr.Substring(0, endIndex).Split('|');
+
+            // if there were multiple messages received, process only the last one
+            // we need to dequeue from sendTimes for all the ignored messages
+            if (messages.Length > 0)
+            {
+                for (int i = 0; i < messages.Length - 1; i++)
+                {
+                    // dequeue everything except last one
+                    if (sendTimes.Count > 0)
+                    {
+                        long foo = sendTimes.Dequeue();
+                    }
+                }
+
+                // Process last message as it has the latest update
+                if (!string.IsNullOrEmpty(messages[messages.Length - 1]))
+                {
+                    ProcessResponse(messages[messages.Length - 1] + "|");
+                }
+            }
+            receiveOngoing = false;
+        }
+        protected void ProcessResponse(string response)
+        {
+            if (sendTimes.Count > 0)
+            {
+                // get 'timestamp' of when request was sent (in fixedUpdateCounter terms)
+                long sendTick = sendTimes.Dequeue();
+                // calculate latency between request and response in number of FixedUpdate ticks
+                latencyTicks = fixedUpdateCounter - sendTick;
+                // update send interval to half of the latency
+                // TODO, dividing by 2 for now, later change divisor dynamically according to absolute latency value
+                // for users with high latency, divisor should be a higher number
+                //sendIntervalTicks = latencyTicks / 2;
+                sendIntervalTicks = latencyTicks * 2;
+            }
+
+            try
+            {
+                // Parse the batched response
+                string[] responses = response.Split(';');
+                List<string> latestOnlinePlayers = new List<string>();
+                foreach (string res in responses)
+                {
+                    if (!string.IsNullOrEmpty(res) && res != "none|")
+                    {
+                        // Truncate trailing "|" if there is one
+                        string trimmedRes = res.TrimEnd('|');
+                        string[] targetData = trimmedRes.Split(',');
+
+                        if (targetData.Length == 9)
+                        {
+                            // Make sure we have that player first
+                            int playerIdx = players.FindIndex(p => p.playerName == targetData[0]);
+                            if (playerIdx != -1)
+                            {
+                                // Update list of active players if needed
+                                // Display in diag window if there is any new player
+                                if (!latestOnlinePlayers.Contains(targetData[0]))
+                                {
+                                    latestOnlinePlayers.Add(targetData[0]);
+                                }
+                                if (!onlinePlayers.Contains(targetData[0]))
+                                {
+                                    onlinePlayers.Add(targetData[0]);
+                                    diagnosticsTextField.text += targetData[0] + " joined." + "\n";
+                                }
+                                Atom otherPlayerAtom = SuperController.singleton.GetAtomByUid(targetData[0]);
+                                // restore original target name
+                                string longTargetName = "";
+                                try
+                                {
+                                    longTargetName = TargetShortToLongName(targetData[1]);
+                                }
+                                catch (Exception ex)
+                                {
+                                    SuperController.LogError("Exception caught: " + ex.Message);
+                                }
+                                FreeControllerV3 targetObject = otherPlayerAtom.GetStorableByID(longTargetName) as FreeControllerV3;
+
+                                if (targetObject != null)
+                                {
+                                    if (positionsBool.val)
+                                    {
+                                        Vector3 tempPosition = targetObject.transform.position;
+                                        tempPosition.x = float.Parse(targetData[2]);
+                                        tempPosition.y = float.Parse(targetData[3]);
+                                        tempPosition.z = float.Parse(targetData[4]);
+
+                                        targetObject.transform.position = tempPosition;
+                                    }
+
+                                    if (rotationsBool.val)
+                                    {
+                                        Quaternion tempRotation = targetObject.transform.rotation;
+                                        tempRotation.w = float.Parse(targetData[5]);
+                                        tempRotation.x = float.Parse(targetData[6]);
+                                        tempRotation.y = float.Parse(targetData[7]);
+                                        tempRotation.z = float.Parse(targetData[8]);
+
+                                        targetObject.transform.rotation = tempRotation;
+                                    }
+                                }
+                                else {
+                                    ;//SuperController.LogError("TARGET OBJECT NULL");
+                                }
+                            }
+                            else {
+                                ;//SuperController.LogError("PLAYER NOT FOUND AGAIN" + targetData[0]);
+                            }
+                        }
+                        else
+                        {
+                            ;//SuperController.LogError("Malformed server response: " + res);
+                        }
+                    } else {
+                            ;//SuperController.LogError("NONE RESPONSE");
+                    }
+                }
+                // Check if anyone disconnected since last tick
+                foreach (string player in onlinePlayers)
+                {
+                    if (!latestOnlinePlayers.Contains(player))
+                    {
+                        diagnosticsTextField.text += player + " disconnected." + "\n";
+                    }
+                }
+                onlinePlayers.Clear();
+                onlinePlayers.AddRange(latestOnlinePlayers);
+            }
+            catch (SocketException ex)
+            {
+                // Handle the socket exception
+                SuperController.LogError("SocketException caught: " + ex.Message);
+            }
+            catch (Exception ex)
+            {
+                // Handle other exceptions
+                SuperController.LogError("Exception caught: " + ex.Message);
+            }
+        }
+
         protected void FixedUpdate()
         {
             try
             {
-                // Get ms elapsed since current stopwatch interval
-                float msElapsed = sw.ElapsedMilliseconds;
+                ticksSinceLastSend++;
 
-                // If the ms elapsed is greater than the period based on the update frequency then
-                // stop the stopwatch, call the update function, and restart the stopwatch
-                if (msElapsed >= (1000.0 / float.Parse(updateFrequencyChooser.val)))
+                if (ticksSinceLastSend >= sendIntervalTicks)
                 {
-                    sw.Stop();
+                    // our send interval elapsed - time to send a request
+                    // note there might be multiple requests in flight at any time
+                    if (stream != null && tcpClient != null)
+                    {
+                        SendRequestToServer();
+                    }
+                    ticksSinceLastSend = 0;
+                }
 
-				// Prepare batched message for sending updates
-				StringBuilder batchedMessage = new StringBuilder(playerChooser.val + ";");
-				string initialMessage = batchedMessage.ToString();
+                // if any requests are in flight - try to receive
+                if (sendTimes.Count != 0)
+                {
+                    ReceiveResponse();
+                }
+            }
+            catch (Exception e)
+            {
+                SuperController.LogError("Exception caught: " + e);
+            }
 
-				// Prepare message with controlled players joints, unless spectator mode is on
-				if (!spectatorModeBool.val)
-				{
-					// Collecting updates to send
-					Atom playerAtom = SuperController.singleton.GetAtomByUid(playerChooser.val);
-
-					// Find correct player in the List
-					int playerIndex = players.FindIndex(p => p.playerName == playerChooser.val);
-					if (playerIndex != -1 && client != null)
-					{
-						Player player = players[playerIndex];
-
-						// Update only changed target positions and rotations for the main player
-						foreach (Player.TargetData target in player.playerTargets)
-						{
-							if (CheckIfTargetIsUpdateable(target.targetName))
-							{
-								FreeControllerV3 targetObject = playerAtom.GetStorableByID(target.targetName) as FreeControllerV3;
-
-								if (targetObject != null)
-								{
-								//if (targetObject.transform.position != target.positionOld || targetObject.transform.rotation != target.rotationOld)
-								{
-									// Append main player's target position and rotation data to the batched message
-									// TODO: if value < 0.00001, round down to 0 to save space
-									
-									// Optimize transfer - use shortened targetname
-									string shortTargetName = "";
-									try
-									{
-									    shortTargetName = TargetLongToShortName(target.targetName);
-									}
-									catch (Exception ex)
-									{
-									    SuperController.LogError("Exception caught: " + ex.Message);
-									}
-									batchedMessage.Append($"{shortTargetName},{targetObject.transform.position.x},{targetObject.transform.position.y},{targetObject.transform.position.z},{targetObject.transform.rotation.w},{targetObject.transform.rotation.x},{targetObject.transform.rotation.y},{targetObject.transform.rotation.z};");
-
-									// Update the 'Old' position and rotation data
-									if (positionsBool.val)
-									{
-									target.positionOld = targetObject.transform.position;
-									}
-
-									if (rotationsBool.val)
-									{
-									target.rotationOld = targetObject.transform.rotation;
-									}
-								} 
-								} else {
-									;//SuperController.LogError("TARGETOBJECT NULL 302");
-								}
-							}
-						}
-					} else
-					{
-						;//SuperController.LogError("PLAYER NOT FOUND");
-					}
-				} else
-				{
-					// message indicating spectator mode
-					// no data is sent in request, we just want the response with all the other players data
-					batchedMessage.Length = 0; // clear string
-					batchedMessage.Append("S");
-				}
-
-				// Send the batched message if there are updates
-				if (batchedMessage.Length > 0 && batchedMessage.ToString() != initialMessage && client != null)
-				{
-					try
-					{
-						// Remove the last character (trailing semicolon)
-						if (batchedMessage[batchedMessage.Length - 1] == ';')
-						{
-						    batchedMessage.Remove(batchedMessage.Length - 1, 1);
-						}
-						string response = SendToServer(batchedMessage.ToString() + "|");
-									;//SuperController.LogError("MESSAGE SENT");
-						;//SuperController.LogError("Response " + response);
-						// Parse the batched response
-						string[] responses = response.Split(';');
-						List<string> latestOnlinePlayers = new List<string>();
-						foreach (string res in responses)
-						{
-							if (!string.IsNullOrEmpty(res) && res != "none|")
-							{
-								// Truncate trailing "|" if there is one
-								string trimmedRes = res.TrimEnd('|');
-								string[] targetData = trimmedRes.Split(',');
-
-								if (targetData.Length == 9)
-								{
-									// Make sure we have that player first
-									int playerIdx = players.FindIndex(p => p.playerName == targetData[0]);
-									if (playerIdx != -1)
-									{
-										// Update list of active players if needed
-										// Display in diag window if there is any new player
-										if (!latestOnlinePlayers.Contains(targetData[0]))
-										{
-											latestOnlinePlayers.Add(targetData[0]);
-										}
-										if (!onlinePlayers.Contains(targetData[0]))
-										{
-											onlinePlayers.Add(targetData[0]);
-											diagnosticsTextField.text += targetData[0] + " joined." + "\n";
-										}
-										Atom otherPlayerAtom = SuperController.singleton.GetAtomByUid(targetData[0]);
-										// restore original target name
-										string longTargetName = "";
-										try
-										{
-										    longTargetName = TargetShortToLongName(targetData[1]);
-										}
-										catch (Exception ex)
-										{
-										    SuperController.LogError("Exception caught: " + ex.Message);
-										}
-										FreeControllerV3 targetObject = otherPlayerAtom.GetStorableByID(longTargetName) as FreeControllerV3;
-
-										if (targetObject != null)
-										{
-											if (positionsBool.val)
-											{
-												Vector3 tempPosition = targetObject.transform.position;
-												tempPosition.x = float.Parse(targetData[2]);
-												tempPosition.y = float.Parse(targetData[3]);
-												tempPosition.z = float.Parse(targetData[4]);
-
-												targetObject.transform.position = tempPosition;
-											}
-
-											if (rotationsBool.val)
-											{
-												Quaternion tempRotation = targetObject.transform.rotation;
-												tempRotation.w = float.Parse(targetData[5]);
-												tempRotation.x = float.Parse(targetData[6]);
-												tempRotation.y = float.Parse(targetData[7]);
-												tempRotation.z = float.Parse(targetData[8]);
-
-												targetObject.transform.rotation = tempRotation;
-											}
-										}
-										else {
-											;//SuperController.LogError("TARGET OBJECT NULL");
-										}
-									}
-									else {
-										;//SuperController.LogError("PLAYER NOT FOUND AGAIN" + targetData[0]);
-									}
-								}
-								else
-								{
-									;//SuperController.LogError("Malformed server response: " + res);
-								}
-							} else {
-									;//SuperController.LogError("NONE RESPONSE");
-							}
-						}
-						// Check if anyone disconnected since last tick
-						foreach (string player in onlinePlayers)
-						{
-							if (!latestOnlinePlayers.Contains(player))
-							{
-								diagnosticsTextField.text += player + " disconnected." + "\n";
-							}
-						}
-						onlinePlayers.Clear();
-						onlinePlayers.AddRange(latestOnlinePlayers);
-					}
-					catch (SocketException ex)
-					{
-					    // Handle the socket exception
-					    SuperController.LogError("SocketException caught: " + ex.Message);
-					    // You can add additional logic here, such as retrying the connection or notifying the user
-					}
-					catch (Exception ex)
-					{
-					    // Handle other exceptions
-					    SuperController.LogError("Exception caught: " + ex.Message);
-					}
-				}
-
-		    sw = Stopwatch.StartNew();
-		}
-	    }
-	    catch (Exception e)
-	    {
-		SuperController.LogError("Exception caught: " + e);
-	    }
-	}
+            fixedUpdateCounter++;
+        }
 
         protected bool CheckIfTargetIsUpdateable(string targetName)
         {
@@ -761,12 +943,12 @@ Syncing:
 
         protected void ConnectToServerCallback()
         {
-            //  Close any established socket server connection
-            if (client != null)
+            //  Ignore if already connected
+            if (tcpClient != null && tcpClient.Connected)
             {
                 diagnosticsTextField.text += "error: already connected." + "\n";
                 SuperController.LogMessage("Already connected to server.");
-		return;
+                return;
             }
 
             try
@@ -775,157 +957,141 @@ Syncing:
                 IPHostEntry ipHostEntry = Dns.GetHostEntry(serverChooser.val);
                 IPAddress ipAddress = Array.Find(ipHostEntry.AddressList, ip => ip.AddressFamily == AddressFamily.InterNetwork);
                 SuperController.LogMessage(ipHostEntry.AddressList[0].ToString());
-                IPEndPoint ipEndPoint = new IPEndPoint(ipAddress, int.Parse(portChooser.val));
+                int port = int.Parse(portChooser.val);
 
                 if (protocolChooser.val == "TCP")
                 {
-                    client = new Socket(ipAddress.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
-		    // Set the TCP_NODELAY flag to disable the Nagle Algorithm
-		    client.SetSocketOption(SocketOptionLevel.Tcp, SocketOptionName.NoDelay, true);
+                    tcpClient = new TcpClient();
+                    tcpClient.BeginConnect(ipAddress, port, new AsyncCallback(OnConnect), tcpClient);
+                    //client = new Socket(ipAddress.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
+                    // Set the TCP_NODELAY flag to disable the Nagle Algorithm
+                    //client.SetSocketOption(SocketOptionLevel.Tcp, SocketOptionName.NoDelay, true);
 
                     // client.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.KeepAlive, true);
 
-		    client.SendTimeout = 5000;    // 5 seconds timeout for send operations
-		    client.ReceiveTimeout = 5000; // 5 seconds timeout for receive operations
-                }
-                else if (protocolChooser.val == "UDP")
-                {
-                    client = new Socket(ipAddress.AddressFamily, SocketType.Dgram, ProtocolType.Udp);
+                    //client.SendTimeout = 5000;    // 5 seconds timeout for send operations
+                    //client.ReceiveTimeout = 5000; // 5 seconds timeout for receive operations
                 }
 
-                client.Connect(ipEndPoint);
+                //client.Connect(ipEndPoint);
 
-                diagnosticsTextField.text += "Connected to server: " + serverChooser.val + ":" + portChooser.val + "\n";
+                //diagnosticsTextField.text += "Connected to server: " + serverChooser.val + ":" + portChooser.val + "\n";
+                diagnosticsTextField.text += "Connecting..\n";
 
-                SuperController.LogMessage("Connected to server: " + serverChooser.val + ":" + portChooser.val);
+                //SuperController.LogMessage("Connected to server: " + serverChooser.val + ":" + portChooser.val);
             }
             catch (Exception e)
             {
                 SuperController.LogError("Exception caught: " + e);
+                diagnosticsTextField.text += "Exception caught: " + e.Message + "\n";
+            }
+        }
+        private void ClearState()
+        {
+            // Clear all state except for state that is initialized in Init()
+            onlinePlayers.Clear();
+            sendTimes.Clear();
+            ticksSinceLastSend = 0;
+            sendIntervalTicks = 5; // Initial interval in ticks
+            latencyTicks = 10; // Initial latency guess
+            receiveOngoing = false;
+            responseBuilder.Length = 0;
+        }
+        private void OnConnect(IAsyncResult ar)
+        {
+            try
+            {
+                tcpClient.EndConnect(ar);
+                if (tcpClient.Connected)
+                {
+                    diagnosticsTextField.text += "Connected to server: " + serverChooser.val + ":" + portChooser.val + "\n";
+                    stream = tcpClient.GetStream();
+                    // Set the TCP_NODELAY flag to disable the Nagle Algorithm
+                    tcpClient.Client.SetSocketOption(SocketOptionLevel.Tcp, SocketOptionName.NoDelay, true);
+                    tcpClient.NoDelay = true;
+                }
+                else
+                {
+                    diagnosticsTextField.text += "Error: server disconnected. Try to re-register via Discord bot. Or did you try controlling an already controlled look?\n";
+                    tcpClient?.Close();
+                    tcpClient = null;
+                    stream = null;
+                }
+            }
+            catch (Exception e)
+            {
+                SuperController.LogError("Exception caught: " + e);
+                diagnosticsTextField.text += "Connection failed: " + e.Message + "\n";
+            }
+            
+            // Clear any state from previous connection
+            ClearState();
+        }
+
+        protected void DisconnectFromServerCallback()
+        {
+            // Check if the client is not null and is connected
+            if (tcpClient != null)
+            {
+                try
+                {
+                    // Shutdown both send and receive operations
+                    if (tcpClient.Connected)
+                    {
+                        tcpClient.Client.Shutdown(SocketShutdown.Both);
+                    }
+                }
+                catch (SocketException ex)
+                {
+                    // Log any socket exceptions that occur during shutdown
+                    SuperController.LogMessage($"SocketException during shutdown: {ex.Message}");
+                }
+                catch (ObjectDisposedException ex)
+                {
+                    // Handle the case where the socket is already disposed
+                    SuperController.LogMessage($"ObjectDisposedException during shutdown: {ex.Message}");
+                }
+                finally
+                {
+                    try
+                    {
+                        // Close the socket connection
+                        tcpClient.Close();
+                        stream = null;
+                    }
+                    catch (SocketException ex)
+                    {
+                        // Log any socket exceptions that occur during close
+                        SuperController.LogMessage($"SocketException during close: {ex.Message}");
+                    }
+                    catch (ObjectDisposedException ex)
+                    {
+                        // Handle the case where the socket is already disposed
+                        SuperController.LogMessage($"ObjectDisposedException during close: {ex.Message}");
+                    }
+                    finally
+                    {
+                        // Set the client to null to indicate it is disconnected
+                        tcpClient = null;
+
+                        // Update UI and log the disconnection
+                        diagnosticsTextField.text += "Disconnected from server.\n";
+                        SuperController.LogMessage("Disconnected from server.");
+                    }
+                }
             }
         }
 
-	protected string SendToServer(string message)
-	{
-	    try
-	    {
-		// Sends data to server over existing socket connection
-		if (client != null)
-		{
-		    byte[] messageBytes = Encoding.ASCII.GetBytes(message);
-
-		    int totalBytesSent = 0;
-		    int bytesLeft = messageBytes.Length;
-
-		    while (bytesLeft > 0)
-		    {
-			int bytesSent = client.Send(messageBytes, totalBytesSent, bytesLeft, SocketFlags.None);
-			if (bytesSent == 0)
-			{
-			    throw new SocketException((int)SocketError.ConnectionReset);
-			}
-
-			totalBytesSent += bytesSent;
-			bytesLeft -= bytesSent;
-		    }
-
-		    StringBuilder responseBuilder = new StringBuilder();
-		    byte[] responseBytes = new byte[65535]; // Buffer for receiving data
-		    int bytesReceived = 0;
-		    string responseStr = "";
-
-		    bytesReceived = client.Receive(responseBytes, 0, responseBytes.Length, SocketFlags.None);
-		    if (bytesReceived <= 0)
-		    {
-		    	// No more data to receive
-		    	return "";
-		    }
-		    responseBuilder.Append(Encoding.UTF8.GetString(responseBytes, 0, bytesReceived));
-
-		    // Check if the message contains the terminating "|"
-		    responseStr = responseBuilder.ToString();
-		    if (!responseStr.Contains("|"))
-	    	    {
-		        return ""; // malformed or truncated
-		    }
-		    
-		    // Convert the accumulated response to a string and trim any excess data after "|"
-		    int endIndex = responseStr.LastIndexOf("|") + 1;
-		    return responseStr.Substring(0, endIndex);
-		}
-		else
-		{
-		    SuperController.LogError("Tried to send but not connected to any server.");
-		    return "Not Connected.";
-		}
-	    }
-		catch (Exception ex)
-		{
-			SuperController.LogError("Exception: " + ex.Message);
-			diagnosticsTextField.text += "Error: server disconnected. Try to re-register via Discord bot. Or did you try controlling an already controlled look?\n";
-			client?.Close();
-			client = null;
-			throw;
-		}
-	}
-
-	protected void DisconnectFromServerCallback()
-	{
-	    // Check if the client is not null and is connected
-	    if (client != null)
-	    {
-		try
-		{
-		    // Shutdown both send and receive operations
-		    if (client.Connected)
-		    {
-			client.Shutdown(SocketShutdown.Both);
-		    }
-		}
-		catch (SocketException ex)
-		{
-		    // Log any socket exceptions that occur during shutdown
-		    SuperController.LogMessage($"SocketException during shutdown: {ex.Message}");
-		}
-		catch (ObjectDisposedException ex)
-		{
-		    // Handle the case where the socket is already disposed
-		    SuperController.LogMessage($"ObjectDisposedException during shutdown: {ex.Message}");
-		}
-		finally
-		{
-		    try
-		    {
-			// Close the socket connection
-			client.Close();
-		    }
-		    catch (SocketException ex)
-		    {
-			// Log any socket exceptions that occur during close
-			SuperController.LogMessage($"SocketException during close: {ex.Message}");
-		    }
-		    catch (ObjectDisposedException ex)
-		    {
-			// Handle the case where the socket is already disposed
-			SuperController.LogMessage($"ObjectDisposedException during close: {ex.Message}");
-		    }
-		    finally
-		    {
-			// Set the client to null to indicate it is disconnected
-			client = null;
-
-			// Update UI and log the disconnection
-			diagnosticsTextField.text += "Disconnected from server.\n";
-			SuperController.LogMessage("Disconnected from server.");
-		    }
-		}
-	    }
-	}
-
-
         protected void OnDestroy()
         {
-
+            if (stream != null)
+            {
+                stream.Close();
+            }
+            if (tcpClient != null)
+            {
+                tcpClient.Close();
+            }
         }
     }
 

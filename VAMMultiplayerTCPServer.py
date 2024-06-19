@@ -84,6 +84,11 @@ class VAMMultiplayerServer:
             # Log IP and player_name changes
             with self.lock:
                 if key not in self.users or self.users[key] != player_name:
+                    if key in self.users:
+                        old_playername = self.users[key]
+                        if old_playername in self.player_to_user:
+                            # Mark previous player controlled by user as free to use
+                            del self.player_to_user[old_playername]
                     self.users[key] = player_name
                     logging.info(f"{key} now controls player {player_name.decode()}")
                     self.player_to_user[player_name] = key
@@ -96,6 +101,11 @@ class VAMMultiplayerServer:
                 with self.lock:
                     player_name = b"@SPECTATOR@" # can be multiple spectators
                     if key not in self.users or self.users[key] != player_name:
+                        if key in self.users:
+                            old_playername = self.users[key]
+                            if old_playername in self.player_to_user:
+                                # Mark previous player controlled by user as free to use
+                                del self.player_to_user[old_playername]
                         self.users[key] = player_name
                         logging.info(f"{key} is now a SPECTATOR")
                         self.on_user_change()

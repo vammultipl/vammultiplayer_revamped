@@ -19,16 +19,13 @@ namespace vamrobotics
 {
     class VAMMultiplayer : MVRScript
     {
-        //private Socket client;
-        private TcpClient tcpClient;
-        private NetworkStream stream;
+        private Socket client;
         private Queue<long> sendTimes = new Queue<long>();
         private long ticksSinceLastSend = 0;
-        private long sendIntervalTicks = 100; // Initial interval in ticks
+        private long sendIntervalTicks = 5; // Initial interval in ticks
         private long latencyTicks = 10; // Initial latency guess
         private long fixedUpdateCounter = 0;
         private byte[] receiveBuffer = new byte[65535];
-        private bool receiveOngoing = false;
         private StringBuilder responseBuilder = new StringBuilder();
         private string lastResponse;
 
@@ -350,7 +347,7 @@ Syncing:
 
                     // Find correct player in the List
                     int playerIndex = players.FindIndex(p => p.playerName == playerChooser.val);
-                    if (playerIndex != -1 && tcpClient != null)
+                    if (playerIndex != -1)
                     {
                         Player player = players[playerIndex];
 
@@ -420,7 +417,7 @@ Syncing:
             StringBuilder batchedMessage = PrepareRequest();
 
             // Send the batched message if there are updates
-            if (batchedMessage.Length <= 0 || tcpClient == null)
+            if (batchedMessage.Length <= 0 || client == null)
             {
                 return;
             }
@@ -433,14 +430,37 @@ Syncing:
                     batchedMessage.Remove(batchedMessage.Length - 1, 1);
                 }
                 String request = batchedMessage.ToString() + "|";
-                if (stream != null && stream.CanWrite)
-                {
-                    byte[] data = Encoding.ASCII.GetBytes(request);
+                byte[] data = Encoding.ASCII.GetBytes(request);
 
-                    // start point for RTT latency calculation
-                    // we use fixed counter for time measurement instead of timers or stopwatches
+                // start point for RTT latency calculation
+                // we use fixed counter for time measurement instead of timers or stopwatches
+                sendTimes.Enqueue(fixedUpdateCounter);
+                //stream.BeginWrite(data, 0, data.Length, new AsyncCallback(OnSend), null);
+                bool sendSucceeded = false;
+                // best effort send: we just skip the send if it WOULDBLOCK
+                try
+                {
+                    client.Send(data);
+                    sendSucceeded = true;
+                }
+                catch (SocketException ex)
+                {
+                    if (ex.SocketErrorCode != SocketError.WouldBlock)
+                    {
+                        SuperController.LogError("SocketException caught: " + ex.Message);
+                        diagnosticsTextField.text += "sendfailed Error: server disconnected. Try to re-register via Discord bot. Or did you try controlling an already controlled look?\n";
+                        client.Close();
+                        client = null;
+                        ClearState();
+                    }
+                    else
+                    {
+                        SuperController.LogError("SEND WOULDBLOCK SocketException caught: " + ex.Message);
+                    }
+                }
+                if (sendSucceeded)
+                {
                     sendTimes.Enqueue(fixedUpdateCounter);
-                    stream.BeginWrite(data, 0, data.Length, new AsyncCallback(OnSend), null);
                 }
             }
             catch (SocketException ex)
@@ -454,67 +474,50 @@ Syncing:
                 SuperController.LogError("Exception caught: " + ex.Message);
             }
         }
-        private void OnSend(IAsyncResult ar)
-        {
-            try
-            {
-                // TODO check result if everything was sent
-                stream.EndWrite(ar);
-            }
-            catch (Exception ex)
-            {
-                diagnosticsTextField.text += "Error: server disconnected. Try to re-register via Discord bot. Or did you try controlling an already controlled look?\n";
-                tcpClient?.Close();
-                tcpClient = null;
-                stream = null;
-                SuperController.LogError("Send error - exception: " + ex.Message);
-                ClearState();
-            }
-        }
         protected void ReceiveResponse()
         {
-            if (stream == null) //&& stream.DataAvailable)
+            if (client == null) //&& stream.DataAvailable)
             {
                 return;
             }
 
-            if (!receiveOngoing)
-            {
-                receiveOngoing = true;
-                stream.BeginRead(receiveBuffer, 0, receiveBuffer.Length, OnReceiveComplete, null);
-            }
+            //stream.BeginRead(receiveBuffer, 0, receiveBuffer.Length, OnReceiveComplete, null);
+            OnReceiveComplete();//placeholder name
         }
-        private void OnReceiveComplete(IAsyncResult result)
+        private void OnReceiveComplete()
         {
-            if (stream == null)
-            {
-                SuperController.LogError("stream null in OnReceiveComplete");
-                return;
-            }
-
             int bytesRead = 0;
             try
             {
-                bytesRead = stream.EndRead(result);
+                bytesRead = client.Receive(receiveBuffer);
+            }
+            catch (SocketException ex)
+            {
+                if (ex.SocketErrorCode != SocketError.WouldBlock)
+                {
+                    SuperController.LogError("Receive Exception SocketException caught: " + ex.Message);
+                    diagnosticsTextField.text += "receivefail Error: server disconnected. Try to re-register via Discord bot. Or did you try controlling an already controlled look?\n";
+                    client.Close();
+                    client = null;
+                    ClearState();
+                }
+                else
+                {
+                    return; // WOULDBLOCK, try again later
+                }
             }
             catch (Exception ex)
             {
-                diagnosticsTextField.text += "Error: server disconnected. Try to re-register via Discord bot. Or did you try controlling an already controlled look?\n";
-                tcpClient?.Close();
-                tcpClient = null;
-                stream = null;
                 SuperController.LogError("Receive error - exception: " + ex.Message);
+                diagnosticsTextField.text += "receivefail general Error: server disconnected. Try to re-register via Discord bot. Or did you try controlling an already controlled look?\n";
+                client.Close();
+                client = null;
                 ClearState();
-                return;
             }
-            if (bytesRead == 0)
+            if (bytesRead <= 0)
             {
-                diagnosticsTextField.text += "Error: server disconnected. Try to re-register via Discord bot. Or did you try controlling an already controlled look?\n";
-                tcpClient?.Close();
-                tcpClient = null;
-                stream = null;
-                ClearState();
-                return;
+                diagnosticsTextField.text += "bytesRead:" + bytesRead;
+                return; // no data, try again later
             }
 
             byte[] receivedBytes = new byte[bytesRead];
@@ -525,7 +528,6 @@ Syncing:
             if (!responseStr.Contains("|"))
             {
                 // have not assembled full message yet
-                receiveOngoing = false;
                 return;
             }
             // we have a termination symbol "|" in message
@@ -562,7 +564,6 @@ Syncing:
                     ProcessResponse(messages[messages.Length - 1] + "|");
                 }
             }
-            receiveOngoing = false;
         }
         protected void ProcessResponse(string response)
         {
@@ -577,7 +578,7 @@ Syncing:
                 // for users with high latency, divisor should be a higher number
                 //sendIntervalTicks = latencyTicks / 2;
                 //sendIntervalTicks = latencyTicks * 2;
-                sendIntervalTicks = latencyTicks;
+                 sendIntervalTicks = latencyTicks;
 //                sendIntervalTicks = 100;
             }
             // just queue up the response to be processed by main thread in FixedUpdate()
@@ -709,7 +710,7 @@ Syncing:
                 {
                     // our send interval elapsed - time to send a request
                     // note there might be multiple requests in flight at any time
-                    if (stream != null && tcpClient != null)
+                    if (client != null)
                     {
                         SendRequestToServer();
                     }
@@ -962,7 +963,7 @@ Syncing:
         protected void ConnectToServerCallback()
         {
             //  Ignore if already connected
-            if (tcpClient != null && tcpClient.Connected)
+            if (client != null && client.Connected)
             {
                 diagnosticsTextField.text += "error: already connected." + "\n";
                 SuperController.LogMessage("Already connected to server.");
@@ -975,15 +976,13 @@ Syncing:
                 IPHostEntry ipHostEntry = Dns.GetHostEntry(serverChooser.val);
                 IPAddress ipAddress = Array.Find(ipHostEntry.AddressList, ip => ip.AddressFamily == AddressFamily.InterNetwork);
                 SuperController.LogMessage(ipHostEntry.AddressList[0].ToString());
-                int port = int.Parse(portChooser.val);
+                IPEndPoint ipEndPoint = new IPEndPoint(ipAddress, int.Parse(portChooser.val));
 
                 if (protocolChooser.val == "TCP")
                 {
-                    tcpClient = new TcpClient();
-                    tcpClient.BeginConnect(ipAddress, port, new AsyncCallback(OnConnect), tcpClient);
-                    //client = new Socket(ipAddress.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
+                    client = new Socket(ipAddress.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
                     // Set the TCP_NODELAY flag to disable the Nagle Algorithm
-                    //client.SetSocketOption(SocketOptionLevel.Tcp, SocketOptionName.NoDelay, true);
+                    client.SetSocketOption(SocketOptionLevel.Tcp, SocketOptionName.NoDelay, true);
 
                     // client.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.KeepAlive, true);
 
@@ -991,12 +990,16 @@ Syncing:
                     //client.ReceiveTimeout = 5000; // 5 seconds timeout for receive operations
                 }
 
-                //client.Connect(ipEndPoint);
+                client.Connect(ipEndPoint);
+                // Set as non-blocking from now on
+                client.Blocking = false;
+                // Clear any state from previous connection
+                ClearState();
 
-                //diagnosticsTextField.text += "Connected to server: " + serverChooser.val + ":" + portChooser.val + "\n";
-                diagnosticsTextField.text += "Connecting..\n";
+                diagnosticsTextField.text += "Connected to server: " + serverChooser.val + ":" + portChooser.val + "\n";
+                //diagnosticsTextField.text += "Connecting..\n";
 
-                //SuperController.LogMessage("Connected to server: " + serverChooser.val + ":" + portChooser.val);
+                SuperController.LogMessage("Connected to server: " + serverChooser.val + ":" + portChooser.val);
             }
             catch (Exception e)
             {
@@ -1012,52 +1015,20 @@ Syncing:
             ticksSinceLastSend = 0;
             sendIntervalTicks = 5; // Initial interval in ticks
             latencyTicks = 10; // Initial latency guess
-            receiveOngoing = false;
             responseBuilder.Length = 0;
             lastResponse = "";
         }
-        private void OnConnect(IAsyncResult ar)
-        {
-            try
-            {
-                tcpClient.EndConnect(ar);
-                if (tcpClient.Connected)
-                {
-                    diagnosticsTextField.text += "Connected to server: " + serverChooser.val + ":" + portChooser.val + "\n";
-                    stream = tcpClient.GetStream();
-                    // Set the TCP_NODELAY flag to disable the Nagle Algorithm
-                    tcpClient.Client.SetSocketOption(SocketOptionLevel.Tcp, SocketOptionName.NoDelay, true);
-                    tcpClient.NoDelay = true;
-                }
-                else
-                {
-                    diagnosticsTextField.text += "Error: server disconnected. Try to re-register via Discord bot. Or did you try controlling an already controlled look?\n";
-                    tcpClient?.Close();
-                    tcpClient = null;
-                    stream = null;
-                }
-            }
-            catch (Exception e)
-            {
-                SuperController.LogError("Exception caught: " + e);
-                diagnosticsTextField.text += "Connection failed: " + e.Message + "\n";
-            }
-            
-            // Clear any state from previous connection
-            ClearState();
-        }
-
         protected void DisconnectFromServerCallback()
         {
             // Check if the client is not null and is connected
-            if (tcpClient != null)
+            if (client != null)
             {
                 try
                 {
                     // Shutdown both send and receive operations
-                    if (tcpClient.Connected)
+                    if (client.Connected)
                     {
-                        tcpClient.Client.Shutdown(SocketShutdown.Both);
+                        client.Shutdown(SocketShutdown.Both);
                     }
                 }
                 catch (SocketException ex)
@@ -1075,8 +1046,7 @@ Syncing:
                     try
                     {
                         // Close the socket connection
-                        tcpClient.Close();
-                        stream = null;
+                        client.Close();
                     }
                     catch (SocketException ex)
                     {
@@ -1091,7 +1061,7 @@ Syncing:
                     finally
                     {
                         // Set the client to null to indicate it is disconnected
-                        tcpClient = null;
+                        client = null;
 
                         // Update UI and log the disconnection
                         diagnosticsTextField.text += "Disconnected from server.\n";
@@ -1103,13 +1073,10 @@ Syncing:
 
         protected void OnDestroy()
         {
-            if (stream != null)
+            if (client != null)
             {
-                stream.Close();
-            }
-            if (tcpClient != null)
-            {
-                tcpClient.Close();
+                client.Close();
+                client = null;
             }
         }
     }

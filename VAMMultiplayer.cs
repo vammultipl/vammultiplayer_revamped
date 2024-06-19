@@ -24,12 +24,13 @@ namespace vamrobotics
         private NetworkStream stream;
         private Queue<long> sendTimes = new Queue<long>();
         private long ticksSinceLastSend = 0;
-        private long sendIntervalTicks = 5; // Initial interval in ticks
+        private long sendIntervalTicks = 100; // Initial interval in ticks
         private long latencyTicks = 10; // Initial latency guess
         private long fixedUpdateCounter = 0;
         private byte[] receiveBuffer = new byte[65535];
         private bool receiveOngoing = false;
         private StringBuilder responseBuilder = new StringBuilder();
+        private string lastResponse;
 
         protected JSONStorableStringChooser playerChooser;
         protected JSONStorableStringChooser serverChooser;
@@ -306,6 +307,8 @@ Syncing:
 		instructionsTextField.height = 600f;
 		instructionsTextField.text += instructionsStr;
 
+                lastResponse = "";
+
             }
             catch (Exception e)
             {
@@ -573,8 +576,22 @@ Syncing:
                 // TODO, dividing by 2 for now, later change divisor dynamically according to absolute latency value
                 // for users with high latency, divisor should be a higher number
                 //sendIntervalTicks = latencyTicks / 2;
-                sendIntervalTicks = latencyTicks * 2;
+                //sendIntervalTicks = latencyTicks * 2;
+                sendIntervalTicks = latencyTicks;
+//                sendIntervalTicks = 100;
             }
+            // just queue up the response to be processed by main thread in FixedUpdate()
+            lastResponse = response;
+        }
+        protected void ActuallyProcessResponse()
+        {
+            if (lastResponse.Length == 0)
+            {
+                return;
+            }
+
+            string response = lastResponse;
+            lastResponse = ""; // clear to mark we've handled it
 
             try
             {
@@ -687,6 +704,7 @@ Syncing:
             {
                 ticksSinceLastSend++;
 
+                ActuallyProcessResponse();
                 if (ticksSinceLastSend >= sendIntervalTicks)
                 {
                     // our send interval elapsed - time to send a request
@@ -996,6 +1014,7 @@ Syncing:
             latencyTicks = 10; // Initial latency guess
             receiveOngoing = false;
             responseBuilder.Length = 0;
+            lastResponse = "";
         }
         private void OnConnect(IAsyncResult ar)
         {

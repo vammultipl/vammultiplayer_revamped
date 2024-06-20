@@ -12,6 +12,7 @@ using SimpleJSON;
 using System.Text;
 using System.Net;
 using System.Net.Sockets;
+using System.Threading;
 using System.Linq;
 using System.Diagnostics;
 
@@ -20,14 +21,29 @@ namespace vamrobotics
     class VAMMultiplayer : MVRScript
     {
         private Socket client;
+        // timestamps of when we sent requests
+        // used also to track requests in flight
+        // receive path pops from this queue
         private Queue<long> sendTimes = new Queue<long>();
+        // TODO rework latency matching with stopwatch and milliseconds, not Update() ticks
         private long ticksSinceLastSend = 0;
-        private long sendIntervalTicks = 5; // Initial interval in ticks
+        private long sendIntervalTicks = 6; // Initial interval in ticks
         private long latencyTicks = 10; // Initial latency guess
         private long fixedUpdateCounter = 0;
+
         private byte[] receiveBuffer = new byte[65535];
         private StringBuilder responseBuilder = new StringBuilder();
-        private string lastResponse;
+
+        // Network background thread
+        private Thread thread;
+        // Latest request message containing player quaternions
+        private StringBuilder requestGlobal = new StringBuilder();
+        private Mutex requestMtx; // locks requestGlobal
+        // Latest received response message containing other players quaternions
+        private string responseGlobal;
+        private Mutex responseMtx; // locks responseGlobal
+        private bool isLooping = true;
+        private int networkLoopSleepValue = 10;
 
         protected JSONStorableStringChooser playerChooser;
         protected JSONStorableStringChooser serverChooser;
@@ -79,7 +95,6 @@ namespace vamrobotics
         private List<string> playerList;
         private List<string> onlinePlayers;
         private List<Player> players;
-        //private Stopwatch sw = Stopwatch.StartNew();
 
 	    private static string[] shortTargetNames = new string[] {
         "c", "Hc", "pc", "cc", "hc", "rh", "lh", "rf", "lf", "nc", "et", "rn", "ln",
@@ -144,10 +159,10 @@ namespace vamrobotics
                 updateFrequencies.Add("20.0");
                 updateFrequencies.Add("25.0");
                 updateFrequencies.Add("30.0");
-               // updateFrequencies.Add("40.0");
-               // updateFrequencies.Add("50.0");
-               // updateFrequencies.Add("60.0");
-               // updateFrequencies.Add("75.0");
+                updateFrequencies.Add("40.0");
+                updateFrequencies.Add("50.0");
+                updateFrequencies.Add("60.0");
+                updateFrequencies.Add("75.0");
                 //updateFrequencies.Add("500.0");
                 updateFrequencyChooser = new JSONStorableStringChooser("Update Frequency Chooser", updateFrequencies, updateFrequencies[3], "Update Frequency", UpdateFrequencyChooserCallback);
                 RegisterStringChooser(updateFrequencyChooser);
@@ -182,7 +197,7 @@ namespace vamrobotics
                 RegisterStringChooser(protocolChooser);
                 CreatePopup(protocolChooser, true);
 
-		// Spectator mode toggle
+                // Spectator mode toggle
                 spectatorModeBool = new JSONStorableBool("Spectator Mode", false);
                 CreateToggle(spectatorModeBool);
 
@@ -197,7 +212,7 @@ namespace vamrobotics
                 // Setup a text field for diagnostics
                 diagnostics = new JSONStorableString("Diagnostics", "Diagnostics:\n");
                 diagnosticsTextField = CreateTextField(diagnostics, true);
-		diagnosticsTextField.height = 600f;
+                diagnosticsTextField.height = 600f;
 
                 // Setup positions and rotations bools
                 positionsBool = new JSONStorableBool("Update Positions", true);
@@ -280,7 +295,7 @@ namespace vamrobotics
                 lShoulderControlBool = new JSONStorableBool("lShoulderControl", true);
                 CreateToggle(lShoulderControlBool);
 
-		string instructionsStr = @"
+                string instructionsStr = @"
 1. Select a Player to control or choose Spectator mode to watch.
 2. Ensure the port (8888 or 9999) matches the room you want to join.
 3. Click 'Connect to server', it may take a few seconds.
@@ -301,11 +316,8 @@ Syncing:
 
                 instructions = new JSONStorableString("Instructions", "Instructions:\n");
                 instructionsTextField = CreateTextField(instructions, true);
-		instructionsTextField.height = 600f;
-		instructionsTextField.text += instructionsStr;
-
-                lastResponse = "";
-
+                instructionsTextField.height = 600f;
+                instructionsTextField.text += instructionsStr;
             }
             catch (Exception e)
             {
@@ -315,24 +327,25 @@ Syncing:
 
 	    public static string TargetShortToLongName(string shortName)
 	    {
-		int index = Array.IndexOf(shortTargetNames, shortName);
-		if (index == -1)
-		{
-		    throw new ArgumentException("Short name does not exist.");
-		}
-		return longTargetNames[index];
+            int index = Array.IndexOf(shortTargetNames, shortName);
+            if (index == -1)
+            {
+                throw new ArgumentException("Short name does not exist.");
+            }
+            return longTargetNames[index];
 	    }
 
 	    public static string TargetLongToShortName(string longName)
 	    {
-		int index = Array.IndexOf(longTargetNames, longName);
-		if (index == -1)
-		{
-		    throw new ArgumentException("Long name does not exist.");
-		}
-		return shortTargetNames[index];
+            int index = Array.IndexOf(longTargetNames, longName);
+            if (index == -1)
+            {
+                throw new ArgumentException("Long name does not exist.");
+            }
+            return shortTargetNames[index];
 	    }
 
+        // to be called on main Unity thread - gathers player quaternions into request message
         protected StringBuilder PrepareRequest()
         {
                 // Prepare batched message for sending updates
@@ -411,10 +424,18 @@ Syncing:
                 }
                 return batchedMessage;
         }
-        protected void SendRequestToServer()
+        protected void SendRequestToServer(Mutex reqMtx)
         {
             // Gather quaternions of player (or empty spectator request) and assemble the message
-            StringBuilder batchedMessage = PrepareRequest();
+            StringBuilder batchedMessage;
+            bool gotMutex = reqMtx.WaitOne(1000); // try to get mutex for 1s
+            if (!gotMutex)
+            {
+                return;
+            }
+            // grab the latest prepared request
+            batchedMessage = requestGlobal;
+            reqMtx.ReleaseMutex();
 
             // Send the batched message if there are updates
             if (batchedMessage.Length <= 0 || client == null)
@@ -434,7 +455,7 @@ Syncing:
 
                 // start point for RTT latency calculation
                 // we use fixed counter for time measurement instead of timers or stopwatches
-                sendTimes.Enqueue(fixedUpdateCounter);
+                //sendTimes.Enqueue(fixedUpdateCounter);
                 //stream.BeginWrite(data, 0, data.Length, new AsyncCallback(OnSend), null);
                 bool sendSucceeded = false;
                 // best effort send: we just skip the send if it WOULDBLOCK
@@ -474,7 +495,7 @@ Syncing:
                 SuperController.LogError("Exception caught: " + ex.Message);
             }
         }
-        protected void ReceiveResponse()
+        protected void ReceiveResponse(Mutex respMtx)
         {
             if (client == null) //&& stream.DataAvailable)
             {
@@ -482,9 +503,9 @@ Syncing:
             }
 
             //stream.BeginRead(receiveBuffer, 0, receiveBuffer.Length, OnReceiveComplete, null);
-            OnReceiveComplete();//placeholder name
+            DoReceive(respMtx);
         }
-        private void OnReceiveComplete()
+        private void DoReceive(Mutex respMtx)
         {
             int bytesRead = 0;
             try
@@ -496,6 +517,7 @@ Syncing:
                 if (ex.SocketErrorCode != SocketError.WouldBlock)
                 {
                     SuperController.LogError("Receive Exception SocketException caught: " + ex.Message);
+                    diagnosticsTextField.text += "\n" + "socketerrorcode on receive="  + ex.SocketErrorCode + "\n";
                     diagnosticsTextField.text += "receivefail Error: server disconnected. Try to re-register via Discord bot. Or did you try controlling an already controlled look?\n";
                     client.Close();
                     client = null;
@@ -538,6 +560,7 @@ Syncing:
             {
                 // we have "|" in message but last character is not "|", save the partial message
                 partialMsg = responseStr.Substring(endIndex + 1);
+                diagnosticsTextField.text += "HAD PARTIAL MSG\n";
             }
             responseBuilder.Append(partialMsg);
 
@@ -561,12 +584,22 @@ Syncing:
                 // Process last message as it has the latest update
                 if (!string.IsNullOrEmpty(messages[messages.Length - 1]))
                 {
-                    ProcessResponse(messages[messages.Length - 1] + "|");
+                    string resp = ProcessResponse(messages[messages.Length - 1] + "|");
+
+                    bool gotMutex = respMtx.WaitOne(1000);
+                    if (!gotMutex)
+                    {
+                        return;
+                    }
+                    // put the response we got into a global to be applied in FixedUpdate
+                    responseGlobal = resp;
+                    respMtx.ReleaseMutex();
                 }
             }
         }
-        protected void ProcessResponse(string response)
+        protected string ProcessResponse(string response)
         {
+            // TODO rework latency matching
             if (sendTimes.Count > 0)
             {
                 // get 'timestamp' of when request was sent (in fixedUpdateCounter terms)
@@ -578,21 +611,23 @@ Syncing:
                 // for users with high latency, divisor should be a higher number
                 //sendIntervalTicks = latencyTicks / 2;
                 //sendIntervalTicks = latencyTicks * 2;
-                 sendIntervalTicks = latencyTicks;
+                 //sendIntervalTicks = latencyTicks / 2;
 //                sendIntervalTicks = 100;
+                sendIntervalTicks = 6;
             }
-            // just queue up the response to be processed by main thread in FixedUpdate()
-            lastResponse = response;
+//            // just queue up the response to be processed by main thread in FixedUpdate()
+//            lastResponse = response;
+            return response;
         }
-        protected void ActuallyProcessResponse()
+
+        // parse response and apply quaternions from other players
+        // to be called in Unity main thread
+        protected void ActuallyProcessResponse(String response)
         {
-            if (lastResponse.Length == 0)
+            if (response.Length == 0)
             {
                 return;
             }
-
-            string response = lastResponse;
-            lastResponse = ""; // clear to mark we've handled it
 
             try
             {
@@ -699,28 +734,59 @@ Syncing:
             }
         }
 
-        protected void FixedUpdate()
+        // Background thread loop doing networking
+        private void NetworkLoop(Mutex reqMtx, Mutex respMtx)
         {
+            Stopwatch sw = Stopwatch.StartNew();
+            while (isLooping)
+            {
+                if (client != null)
+                {
+                    // Send request and/or receive response
+                    SendReceiveUpdate(sw, reqMtx, respMtx);
+                }
+                Thread.Sleep(networkLoopSleepValue);
+            }
+        }
+        protected void SendReceiveUpdate(Stopwatch sw, Mutex reqMtx, Mutex respMtx)
+        {
+           // if ((fixedUpdateCounter % 200) == 0)
+           // {
+           //     diagnosticsTextField.text += "sendIntervalTicks=" + sendIntervalTicks + ", latency=" + latencyTicks + ", queue=" + sendTimes.Count() + "\n";
+           // }
             try
             {
-                ticksSinceLastSend++;
+                //ticksSinceLastSend++;
+                // Get ms elapsed since current stopwatch interval
+                float msElapsed = sw.ElapsedMilliseconds;
+                // flag to avoid sending and receiving in the same iteration
+                bool sentThisIteration = false;
 
-                ActuallyProcessResponse();
-                if (ticksSinceLastSend >= sendIntervalTicks)
+                // If the ms elapsed is greater than the period based on the update frequency then
+                // stop the stopwatch, call the update function, and restart the stopwatch
+                if (msElapsed >= (1000.0 / float.Parse(updateFrequencyChooser.val)))
                 {
-                    // our send interval elapsed - time to send a request
-                    // note there might be multiple requests in flight at any time
-                    if (client != null)
+                    sw.Stop();
+                    //if (ticksSinceLastSend >= sendIntervalTicks)
+                    if (sendTimes.Count() <= 4)
                     {
-                        SendRequestToServer();
+                        // our send interval elapsed - time to send a request
+                        // note there might be multiple requests in flight at any time
+                        if (client != null)
+                        {
+                            // TODO its nonblocking so check that it actually sent and set sentThisIteration
+                            SendRequestToServer(reqMtx);
+                            sentThisIteration = true;
+                        }
+                        ticksSinceLastSend = 0;
                     }
-                    ticksSinceLastSend = 0;
+                    sw = Stopwatch.StartNew();
                 }
-
                 // if any requests are in flight - try to receive
-                if (sendTimes.Count != 0)
+                // note that updateFrequency does not affect this, we try to receive every iteration
+                if (sendTimes.Count != 0 && !sentThisIteration)
                 {
-                    ReceiveResponse();
+                    ReceiveResponse(respMtx);
                 }
             }
             catch (Exception e)
@@ -728,7 +794,39 @@ Syncing:
                 SuperController.LogError("Exception caught: " + e);
             }
 
-            fixedUpdateCounter++;
+            //fixedUpdateCounter++;
+        }
+        // called by Unity on main thread, used for physics updates has Physics Rate frequency (usually 90hz so 11.1ms)
+        protected void FixedUpdate()
+        {
+            bool gotMutex = responseMtx.WaitOne(200);
+            if (!gotMutex)
+            {
+                return;
+            }
+            // get latest response that the networking thread received from server
+            string latestResp = responseGlobal;
+            responseMtx.ReleaseMutex();
+
+            // apply quaternions from response
+            ActuallyProcessResponse(latestResp);
+
+            // put local player quaternions into message
+            StringBuilder batchedMessage = PrepareRequest();
+            gotMutex = requestMtx.WaitOne(200); // try to get mutex for 0.2ms
+            if (!gotMutex)
+            {
+                return;
+            }
+            // put message in a global so networking thread can send it
+            requestGlobal = batchedMessage;
+            requestMtx.ReleaseMutex();
+
+            // NOTE: UNCOMMENT FOR LOCAL TESTING WITH TWO VAM WINDOWS
+            // VAM SLOWS DOWN WHEN UNFOCUSED SO WE NEED TO "KICK" VAM
+            // BY SLEEPING A BIT IN FIXEDUPDATE
+            // OTHERWISE FPS TANK TO <10
+            //Thread.Sleep(5);
         }
 
         protected bool CheckIfTargetIsUpdateable(string targetName)
@@ -986,13 +1084,13 @@ Syncing:
 
                     // client.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.KeepAlive, true);
 
-                    //client.SendTimeout = 5000;    // 5 seconds timeout for send operations
-                    //client.ReceiveTimeout = 5000; // 5 seconds timeout for receive operations
+                    client.SendTimeout = 5000;    // 5 seconds timeout for send operations
+                    client.ReceiveTimeout = 5000; // 5 seconds timeout for receive operations
                 }
 
                 client.Connect(ipEndPoint);
                 // Set as non-blocking from now on
-                client.Blocking = false;
+//                client.Blocking = false;
                 // Clear any state from previous connection
                 ClearState();
 
@@ -1000,6 +1098,12 @@ Syncing:
                 //diagnosticsTextField.text += "Connecting..\n";
 
                 SuperController.LogMessage("Connected to server: " + serverChooser.val + ":" + portChooser.val);
+                
+                requestMtx = new Mutex();
+                responseMtx = new Mutex();
+                thread = new Thread(() => NetworkLoop(requestMtx, responseMtx));
+                thread.IsBackground = true;
+                thread.Start();
             }
             catch (Exception e)
             {
@@ -1013,10 +1117,11 @@ Syncing:
             onlinePlayers.Clear();
             sendTimes.Clear();
             ticksSinceLastSend = 0;
-            sendIntervalTicks = 5; // Initial interval in ticks
+            sendIntervalTicks = 6; // Initial interval in ticks
             latencyTicks = 10; // Initial latency guess
             responseBuilder.Length = 0;
-            lastResponse = "";
+            requestGlobal.Length = 0;
+            responseGlobal = "";
         }
         protected void DisconnectFromServerCallback()
         {
@@ -1028,6 +1133,13 @@ Syncing:
                     // Shutdown both send and receive operations
                     if (client.Connected)
                     {
+                        if (thread != null)
+                        {
+                            thread.Abort();
+                            thread = null;
+                            requestMtx = null;
+                            responseMtx = null;
+                        }
                         client.Shutdown(SocketShutdown.Both);
                     }
                 }
@@ -1078,6 +1190,12 @@ Syncing:
                 client.Close();
                 client = null;
             }
+            if (thread != null)
+            {
+                thread.Abort();
+                thread = null;
+            }
+            isLooping = false;
         }
     }
 

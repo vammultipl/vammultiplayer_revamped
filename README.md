@@ -50,7 +50,8 @@ The client plugin is a single `VAMMultiplayer.cs` file which can be added to any
 ### Tips
 - If you encounter issues, click Disconnect and Connect again.
 - Reload the plugin if problems persist.
-- Make sure to use the latest available version of the client plugin
+- Make sure to use the latest available version of the client plugin.
+- Click an option in GiveMeFPS plugin (added to scene) for more FPS.
 
 ### Scenes
 - All players in the same room must use the same scene with pre-defined atoms.
@@ -78,13 +79,14 @@ If you can't connect to the server, it might be due to:
 - You are not registered (register with the bot again)
 - The player you are trying to control is already being controlled
 - Not using latest version of the client plugin
+- If all else fails - click Reload to reload plugin, reconnect
 
 ## Lobbies
 - Two rooms are available, running in parallel on ports 8888 and 9999, max 4 players per room.
 - The Discord bot shows which players are connected to which room.
 - Registration works for both rooms.
 
-## Hosting Your Own VaM Multiplayer
+## Hosting Your Own VaM Multiplayer (Optional)
 If you want to host everything yourself, you can recreate this setup easily:
 1. Host a Linux server (e.g., free Azure tier or Oracle Linux VMs).
 2. Run the TCP server on your server.
@@ -103,6 +105,7 @@ If you want to host everything yourself, you can recreate this setup easily:
 ## Known Issues
 - "Player connected/disconnected" messages in plugin window are wonky and not always correct. Discord bot statuses are always correct, updated every 20s.
 - If you add more plugins to the scene or atoms, FPS might drop a lot because the multiplayer plugin blocks on TCP connection in FixedUpdate() which may degrade performance of other scripts. This performance degradation might be even worse if you are far from the server (currently EU based). This issue will be fixed in another release.
+EDIT: this seems to be pretty much fixed in VamMultiplayer.cs in experimental branch - try it!
 
 ## TL;DR I came from Metachat - how do I use this?
 MetaChat had web registration, lobbies with visible scenes, an in-game menu to synchronize other people's looks, and also a chat. This has none of that.
@@ -117,8 +120,13 @@ Instead:
 
 ## Additional Help
 - Visit the old MetaChat Discord or the newer VamChat Discord (another project for a full-fledged MetaChat replacement).
+- Recall the great guide made by VamMoose on the old Metachat plugin
 
-## Tips
+Read section 4.5:
+[VamMoose Metachat Guide](https://hub.virtamate.com/resources/metachat-toolkit.26478)
+For best results - use full body tracking with Embody plugin :)
+
+## Donate
 https://ko-fi.com/vammultipl
 Thanks!
 

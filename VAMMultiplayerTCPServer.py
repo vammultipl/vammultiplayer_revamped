@@ -39,13 +39,41 @@ class VAMMultiplayerServer:
             threading.Thread(target=self.client_connection, args=(client, address)).start()
 
     def client_connection(self, client, address):
+        key = f"{address[0]}:{address[1]}"
+        # Last saved partial message (when recv() didnt get the whole message)
+        saved_partial_message = b''
         try:
             while True:
                 request = client.recv(65535)
                 if not request:
                     break
-                if request.endswith(b"|"):
-                    self.handle_request(client, request[:-1], address)
+
+                # Count the number of "|" terminators in the request
+                terminator_count = request.count(b"|")
+
+                if terminator_count == 0:
+                    logging.info(f"storing partial message")
+                    saved_partial_message += request
+                    # sanity check
+                    if len(saved_partial_message) > 20000:
+                        # partial message unexpectedly big, something is wrong, terminate connection
+                        logging.error(f"Error: partial message for {key} grew beyond 20k, disconnecting user")
+                        break
+                    continue
+                elif terminator_count >= 1:
+                    # we got multiple messages at once, first one is potentially a partial message
+                    messages = request.split(b"|")
+                    messages[0] = saved_partial_message + messages[0]
+                    saved_partial_message = b'' # stored partial message was incorporated - clear it
+                    if not request.endswith(b"|"):
+                        # request ends with partial message - save it
+                        saved_partial_message = messages[-1]
+                        messages = messages[:-1]
+                    # XXX: should we process only last message? safer to process all for now
+                    for msg in messages:
+                        if len(msg) > 0:
+                            self.handle_request(client, msg, address)
+
         except Exception as e:
             logging.info(f"Error from {address[0]}:{address[1]} :{e}")
         finally:

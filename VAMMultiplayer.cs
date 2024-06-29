@@ -26,10 +26,23 @@ namespace vamrobotics
         // receive path pops from this queue
         private Queue<long> sendTimes = new Queue<long>();
         // TODO rework latency matching with stopwatch and milliseconds, not Update() ticks
+        private long lastSentTimestamp = 0;
         private long ticksSinceLastSend = 0;
         private long sendIntervalTicks = 6; // Initial interval in ticks
         private long latencyTicks = 10; // Initial latency guess
         private long fixedUpdateCounter = 0;
+
+        // debug statistics
+        private double averageLatency = 30.0;
+        private long summedLatencies = 0;
+        private long latenciesCount = 0;
+        private double averageInFlightRequests = 1.0;
+        private long summedInFlightRequests = 0;
+        private long inFlightRequestsCount = 0;
+        private long timeoutsSinceLastReceive = 0;
+        private long successfulReceivesCount = 0;
+        private long totalTimeouts = 0;
+        private double averageReceiveTimeouts = 1.0;
 
         private byte[] receiveBuffer = new byte[65535];
         private StringBuilder responseBuilder = new StringBuilder();
@@ -43,7 +56,7 @@ namespace vamrobotics
         private string responseGlobal;
         private Mutex responseMtx; // locks responseGlobal
         private bool isLooping = true;
-        private int networkLoopSleepValue = 10;
+        private int networkLoopSleepValue = 5;
 
         protected JSONStorableStringChooser playerChooser;
         protected JSONStorableStringChooser serverChooser;
@@ -92,6 +105,8 @@ namespace vamrobotics
         protected UIDynamicTextField diagnosticsTextField;
         protected JSONStorableString instructions;
         protected UIDynamicTextField instructionsTextField;
+        protected JSONStorableString debugStats;
+        protected UIDynamicTextField debugStatsTextField;
         private List<string> playerList;
         private List<string> onlinePlayers;
         private List<Player> players;
@@ -164,7 +179,7 @@ namespace vamrobotics
                 updateFrequencies.Add("60.0");
                 updateFrequencies.Add("75.0");
                 //updateFrequencies.Add("500.0");
-                updateFrequencyChooser = new JSONStorableStringChooser("Update Frequency Chooser", updateFrequencies, updateFrequencies[3], "Update Frequency", UpdateFrequencyChooserCallback);
+                updateFrequencyChooser = new JSONStorableStringChooser("Update Frequency Chooser", updateFrequencies, updateFrequencies[5], "Update Frequency", UpdateFrequencyChooserCallback);
                 RegisterStringChooser(updateFrequencyChooser);
                 CreatePopup(updateFrequencyChooser);
 
@@ -318,6 +333,10 @@ Syncing:
                 instructionsTextField = CreateTextField(instructions, true);
                 instructionsTextField.height = 600f;
                 instructionsTextField.text += instructionsStr;
+
+                debugStats = new JSONStorableString("Debug stats", "Debug stats:\n");
+                debugStatsTextField = CreateTextField(debugStats, true);
+                debugStatsTextField.height = 200f;
             }
             catch (Exception e)
             {
@@ -424,14 +443,14 @@ Syncing:
                 }
                 return batchedMessage;
         }
-        protected void SendRequestToServer(Mutex reqMtx)
+        protected bool SendRequestToServer(Mutex reqMtx)
         {
             // Gather quaternions of player (or empty spectator request) and assemble the message
             StringBuilder batchedMessage;
             bool gotMutex = reqMtx.WaitOne(1000); // try to get mutex for 1s
             if (!gotMutex)
             {
-                return;
+                return false;
             }
             // grab the latest prepared request
             batchedMessage = requestGlobal;
@@ -440,7 +459,7 @@ Syncing:
             // Send the batched message if there are updates
             if (batchedMessage.Length <= 0 || client == null)
             {
-                return;
+                return false;
             }
 
             try
@@ -461,6 +480,7 @@ Syncing:
                 // best effort send: we just skip the send if it WOULDBLOCK
                 try
                 {
+                    // TODO we need to keep track of return value and how many bytes were actually sent
                     client.Send(data);
                     sendSucceeded = true;
                 }
@@ -469,20 +489,24 @@ Syncing:
                     if (ex.SocketErrorCode != SocketError.WouldBlock)
                     {
                         SuperController.LogError("SocketException caught: " + ex.Message);
-                        diagnosticsTextField.text += "sendfailed Error: server disconnected. Try to re-register via Discord bot. Or did you try controlling an already controlled look?\n";
-                        client.Close();
-                        client = null;
-                        ClearState();
+                        if (ex.SocketErrorCode == SocketError.TimedOut)
+                        {
+                            diagnosticsTextField.text += "sendfailed Error: SEND TIMEOUT\n";
+                        }
+                        else
+                        {
+                            diagnosticsTextField.text += "sendfailed Error: server disconnected. Try to re-register via Discord bot. Or did you try controlling an already controlled look?\n";
+                            client.Close();
+                            client = null;
+                            ClearState();
+                        }
                     }
                     else
                     {
                         SuperController.LogError("SEND WOULDBLOCK SocketException caught: " + ex.Message);
                     }
                 }
-                if (sendSucceeded)
-                {
-                    sendTimes.Enqueue(fixedUpdateCounter);
-                }
+                return sendSucceeded;
             }
             catch (SocketException ex)
             {
@@ -494,8 +518,9 @@ Syncing:
                 // Handle other exceptions
                 SuperController.LogError("Exception caught: " + ex.Message);
             }
+            return false;
         }
-        protected void ReceiveResponse(Mutex respMtx)
+        protected void ReceiveResponse(Mutex respMtx, Stopwatch sw)
         {
             if (client == null) //&& stream.DataAvailable)
             {
@@ -503,9 +528,9 @@ Syncing:
             }
 
             //stream.BeginRead(receiveBuffer, 0, receiveBuffer.Length, OnReceiveComplete, null);
-            DoReceive(respMtx);
+            DoReceive(respMtx, sw);
         }
-        private void DoReceive(Mutex respMtx)
+        private void DoReceive(Mutex respMtx, Stopwatch sw)
         {
             int bytesRead = 0;
             try
@@ -516,6 +541,12 @@ Syncing:
             {
                 if (ex.SocketErrorCode != SocketError.WouldBlock)
                 {
+                    if (ex.SocketErrorCode == SocketError.TimedOut)
+                    {
+                        // timeout happened, it's okay, we'll try next time
+                        timeoutsSinceLastReceive++;
+                        return;
+                    }
                     SuperController.LogError("Receive Exception SocketException caught: " + ex.Message);
                     diagnosticsTextField.text += "\n" + "socketerrorcode on receive="  + ex.SocketErrorCode + "\n";
                     diagnosticsTextField.text += "receivefail Error: server disconnected. Try to re-register via Discord bot. Or did you try controlling an already controlled look?\n";
@@ -538,10 +569,19 @@ Syncing:
             }
             if (bytesRead <= 0)
             {
-                diagnosticsTextField.text += "bytesRead:" + bytesRead;
+                diagnosticsTextField.text += "bytesRead:" + bytesRead + "\n";
                 return; // no data, try again later
             }
 
+            // update debug statistics
+            successfulReceivesCount++;
+            if (timeoutsSinceLastReceive > 0)
+            {
+                totalTimeouts += timeoutsSinceLastReceive;
+                timeoutsSinceLastReceive = 0; // Reset timeouts count
+            }
+
+            // handle received data
             byte[] receivedBytes = new byte[bytesRead];
             Array.Copy(receiveBuffer, receivedBytes, bytesRead);
 
@@ -584,7 +624,7 @@ Syncing:
                 // Process last message as it has the latest update
                 if (!string.IsNullOrEmpty(messages[messages.Length - 1]))
                 {
-                    string resp = ProcessResponse(messages[messages.Length - 1] + "|");
+                    string resp = ProcessResponse(messages[messages.Length - 1] + "|", sw);
 
                     bool gotMutex = respMtx.WaitOne(1000);
                     if (!gotMutex)
@@ -597,15 +637,21 @@ Syncing:
                 }
             }
         }
-        protected string ProcessResponse(string response)
+        protected string ProcessResponse(string response, Stopwatch sw)
         {
-            // TODO rework latency matching
             if (sendTimes.Count > 0)
             {
-                // get 'timestamp' of when request was sent (in fixedUpdateCounter terms)
-                long sendTick = sendTimes.Dequeue();
-                // calculate latency between request and response in number of FixedUpdate ticks
-                latencyTicks = fixedUpdateCounter - sendTick;
+                // get timestamp of when request was sent
+                long sentTimestamp = sendTimes.Dequeue();
+                // calculate latency in ms between request and response
+                long currentTimestamp = sw.ElapsedMilliseconds;
+                long responseLatency = currentTimestamp - sentTimestamp;
+
+                // update debug statistics
+                summedLatencies += responseLatency;
+                latenciesCount++;
+                summedInFlightRequests += (sendTimes.Count + 1);
+                inFlightRequestsCount++;
                 // update send interval to half of the latency
                 // TODO, dividing by 2 for now, later change divisor dynamically according to absolute latency value
                 // for users with high latency, divisor should be a higher number
@@ -613,7 +659,12 @@ Syncing:
                 //sendIntervalTicks = latencyTicks * 2;
                  //sendIntervalTicks = latencyTicks / 2;
 //                sendIntervalTicks = 100;
-                sendIntervalTicks = 6;
+                //sendIntervalTicks = 6;
+                //
+            }
+            else
+            {
+                diagnosticsTextField.text += "Unexpected: sendTimes empty when processing response\n";
             }
 //            // just queue up the response to be processed by main thread in FixedUpdate()
 //            lastResponse = response;
@@ -737,6 +788,7 @@ Syncing:
         // Background thread loop doing networking
         private void NetworkLoop(Mutex reqMtx, Mutex respMtx)
         {
+	    // Start stopwatch that will go continuously, never stopping (until we disconnect)
             Stopwatch sw = Stopwatch.StartNew();
             while (isLooping)
             {
@@ -754,39 +806,60 @@ Syncing:
            // {
            //     diagnosticsTextField.text += "sendIntervalTicks=" + sendIntervalTicks + ", latency=" + latencyTicks + ", queue=" + sendTimes.Count() + "\n";
            // }
+
+            // update debug stats once in a while
+            if ((sw.ElapsedMilliseconds % 5000) == 0)
+            {
+		if (successfulReceivesCount > 0)
+		{
+		    averageReceiveTimeouts = (double)totalTimeouts / successfulReceivesCount;
+		}
+		if (latenciesCount > 0)	
+		{
+                    averageLatency = (double)summedLatencies / latenciesCount;
+		}
+		if (inFlightRequestsCount > 0)
+		{
+                    averageInFlightRequests = (double)summedInFlightRequests / inFlightRequestsCount;
+		}
+                debugStatsTextField.text = "Avg latency=" + averageLatency + "ms\n" +
+                                           "Avg in-flight requests=" + averageInFlightRequests + "\n" +
+                                           "Avg cycles to recv=" + averageReceiveTimeouts;
+            }
+
             try
             {
                 //ticksSinceLastSend++;
-                // Get ms elapsed since current stopwatch interval
-                float msElapsed = sw.ElapsedMilliseconds;
-                // flag to avoid sending and receiving in the same iteration
-                bool sentThisIteration = false;
+                // Get ms elapsed since last time we sent a request
+                long msElapsed = sw.ElapsedMilliseconds - lastSentTimestamp;
 
                 // If the ms elapsed is greater than the period based on the update frequency then
-                // stop the stopwatch, call the update function, and restart the stopwatch
-                if (msElapsed >= (1000.0 / float.Parse(updateFrequencyChooser.val)))
+                // send a request
+                if ((float)msElapsed >= (1000.0 / float.Parse(updateFrequencyChooser.val)))
                 {
-                    sw.Stop();
                     //if (ticksSinceLastSend >= sendIntervalTicks)
-                    if (sendTimes.Count() <= 4)
+                    // limit in-flight requests
+                    if (sendTimes.Count() <= 15)
                     {
                         // our send interval elapsed - time to send a request
                         // note there might be multiple requests in flight at any time
                         if (client != null)
                         {
-                            // TODO its nonblocking so check that it actually sent and set sentThisIteration
-                            SendRequestToServer(reqMtx);
-                            sentThisIteration = true;
+                            // TODO if its nonblocking - check that it actually sent
+                            bool succeeded = SendRequestToServer(reqMtx);
+                            if (succeeded)
+                            {
+                                lastSentTimestamp = sw.ElapsedMilliseconds;
+                                sendTimes.Enqueue(lastSentTimestamp);
+                            }
                         }
-                        ticksSinceLastSend = 0;
                     }
-                    sw = Stopwatch.StartNew();
                 }
                 // if any requests are in flight - try to receive
                 // note that updateFrequency does not affect this, we try to receive every iteration
-                if (sendTimes.Count != 0 && !sentThisIteration)
+                if (sendTimes.Count != 0)
                 {
-                    ReceiveResponse(respMtx);
+                    ReceiveResponse(respMtx, sw);
                 }
             }
             catch (Exception e)
@@ -1084,13 +1157,15 @@ Syncing:
 
                     // client.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.KeepAlive, true);
 
+                    // XXX irrelevant if Blocking is false
                     client.SendTimeout = 5000;    // 5 seconds timeout for send operations
-                    client.ReceiveTimeout = 5000; // 5 seconds timeout for receive operations
+                    //client.ReceiveTimeout = 5000; // 5 seconds timeout for receive operations
+                    client.ReceiveTimeout = 2; // 2ms timeout
                 }
 
                 client.Connect(ipEndPoint);
                 // Set as non-blocking from now on
-//                client.Blocking = false;
+                //client.Blocking = false;
                 // Clear any state from previous connection
                 ClearState();
 
@@ -1116,7 +1191,18 @@ Syncing:
             // Clear all state except for state that is initialized in Init()
             onlinePlayers.Clear();
             sendTimes.Clear();
+            lastSentTimestamp = 0;
+            averageLatency = 30.0;
+            summedLatencies = 0;
+            latenciesCount = 0;
             ticksSinceLastSend = 0;
+            averageInFlightRequests = 1.0;
+            summedInFlightRequests = 0;
+            inFlightRequestsCount = 0;
+            timeoutsSinceLastReceive = 0;
+            successfulReceivesCount = 0;
+            totalTimeouts = 0;
+            averageReceiveTimeouts = 1.0;
             sendIntervalTicks = 6; // Initial interval in ticks
             latencyTicks = 10; // Initial latency guess
             responseBuilder.Length = 0;

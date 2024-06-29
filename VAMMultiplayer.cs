@@ -281,9 +281,9 @@ namespace vamrobotics
                 CreateToggle(penisMidControlBool);
                 penisTipControlBool = new JSONStorableBool("penisTipControl", false);
                 CreateToggle(penisTipControlBool);
-                rElbowControlBool = new JSONStorableBool("rElbowControl", false);
+                rElbowControlBool = new JSONStorableBool("rElbowControl", true);
                 CreateToggle(rElbowControlBool);
-                lElbowControlBool = new JSONStorableBool("lElbowControl", false);
+                lElbowControlBool = new JSONStorableBool("lElbowControl", true);
                 CreateToggle(lElbowControlBool);
                 rKneeControlBool = new JSONStorableBool("rKneeControl", true);
                 CreateToggle(rKneeControlBool);
@@ -305,9 +305,9 @@ namespace vamrobotics
                 CreateToggle(rArmControlBool);
                 lArmControlBool = new JSONStorableBool("lArmControl", true);
                 CreateToggle(lArmControlBool);
-                rShoulderControlBool = new JSONStorableBool("rShoulderControl", true);
+                rShoulderControlBool = new JSONStorableBool("rShoulderControl", false);
                 CreateToggle(rShoulderControlBool);
-                lShoulderControlBool = new JSONStorableBool("lShoulderControl", true);
+                lShoulderControlBool = new JSONStorableBool("lShoulderControl", false);
                 CreateToggle(lShoulderControlBool);
 
                 string instructionsStr = @"
@@ -331,7 +331,7 @@ Syncing:
 
                 instructions = new JSONStorableString("Instructions", "Instructions:\n");
                 instructionsTextField = CreateTextField(instructions, true);
-                instructionsTextField.height = 600f;
+                instructionsTextField.height = 1000f;
                 instructionsTextField.text += instructionsStr;
 
                 debugStats = new JSONStorableString("Debug stats", "Debug stats:\n");
@@ -808,23 +808,34 @@ Syncing:
            // }
 
             // update debug stats once in a while
-            if ((sw.ElapsedMilliseconds % 5000) == 0)
+            if ((sw.ElapsedMilliseconds % 2000) == 0)
             {
-		if (successfulReceivesCount > 0)
-		{
-		    averageReceiveTimeouts = (double)totalTimeouts / successfulReceivesCount;
-		}
-		if (latenciesCount > 0)	
-		{
+                if (successfulReceivesCount > 0)
+                {
+                    averageReceiveTimeouts = (double)totalTimeouts / successfulReceivesCount;
+                }
+                if (latenciesCount > 0)
+                {
                     averageLatency = (double)summedLatencies / latenciesCount;
-		}
-		if (inFlightRequestsCount > 0)
-		{
+                }
+                if (inFlightRequestsCount > 0)
+                {
                     averageInFlightRequests = (double)summedInFlightRequests / inFlightRequestsCount;
-		}
+                }
                 debugStatsTextField.text = "Avg latency=" + averageLatency + "ms\n" +
                                            "Avg in-flight requests=" + averageInFlightRequests + "\n" +
                                            "Avg cycles to recv=" + averageReceiveTimeouts;
+				// clear
+				averageLatency = 30.0;
+				summedLatencies = 0;
+				latenciesCount = 0;
+				averageInFlightRequests = 1.0;
+				summedInFlightRequests = 0;
+				inFlightRequestsCount = 0;
+				timeoutsSinceLastReceive = 0;
+				successfulReceivesCount = 0;
+				totalTimeouts = 0;
+				averageReceiveTimeouts = 1.0;
             }
 
             try

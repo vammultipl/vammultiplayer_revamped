@@ -43,6 +43,9 @@ namespace vamrobotics
         private long successfulReceivesCount = 0;
         private long totalTimeouts = 0;
         private double averageReceiveTimeouts = 1.0;
+        private long partialMessages = 0;
+        private long sendTimeouts = 0;
+        private long ioPendingExceptions = 0;
 
         private byte[] receiveBuffer = new byte[65535];
         private StringBuilder responseBuilder = new StringBuilder();
@@ -478,23 +481,60 @@ Syncing:
                 //stream.BeginWrite(data, 0, data.Length, new AsyncCallback(OnSend), null);
                 bool sendSucceeded = false;
                 // best effort send: we just skip the send if it WOULDBLOCK
+				int totalBytesSent = 0;
+				int bytesLeft = data.Length;
                 try
                 {
-                    // TODO we need to keep track of return value and how many bytes were actually sent
-                    client.Send(data);
-                    sendSucceeded = true;
+					// send all data
+					while (bytesLeft > 0)
+					{
+						List<Socket> checkWrite = new List<Socket> { client };
+						List<Socket> checkError = new List<Socket> { client };
+						Socket.Select(null, checkWrite, checkError, 300 * 1000); // 300ms timeout for send
+						if (checkWrite.Contains(client))
+						{
+							int bytesSent = client.Send(data, totalBytesSent, bytesLeft, SocketFlags.None);
+							totalBytesSent += bytesSent;
+							bytesLeft -= bytesSent;
+
+							if (bytesLeft == 0)
+							{
+								sendSucceeded = true;
+							}
+						}
+						else if (checkError.Contains(client))
+						{
+							diagnosticsTextField.text += "sendfailed Error: socket error.\n";
+							break;
+						}
+						else
+						{
+							// send timeout - bail
+							// XXX: what if we sent part of message in this loop - we still return to caller like we didn't
+							sendTimeouts++;
+							break;
+						}
+					}
                 }
                 catch (SocketException ex)
                 {
                     if (ex.SocketErrorCode != SocketError.WouldBlock)
                     {
-                        SuperController.LogError("SocketException caught: " + ex.Message);
                         if (ex.SocketErrorCode == SocketError.TimedOut)
                         {
                             diagnosticsTextField.text += "sendfailed Error: SEND TIMEOUT\n";
                         }
+						else if (ex.SocketErrorCode == SocketError.IOPending)
+						{
+							ioPendingExceptions++;
+						}
+						else if (ex.SocketErrorCode == SocketError.NoBufferSpaceAvailable)
+						{
+							; // bail
+						}
                         else
                         {
+                            SuperController.LogError("SocketException caught: " + ex.Message);
                             diagnosticsTextField.text += "sendfailed Error: server disconnected. Try to re-register via Discord bot. Or did you try controlling an already controlled look?\n";
                             client.Close();
                             client = null;
@@ -503,15 +543,10 @@ Syncing:
                     }
                     else
                     {
-                        SuperController.LogError("SEND WOULDBLOCK SocketException caught: " + ex.Message);
+						; // WOULDBLOCK - bail
                     }
                 }
                 return sendSucceeded;
-            }
-            catch (SocketException ex)
-            {
-                // Handle the socket exception
-                SuperController.LogError("SocketException caught: " + ex.Message);
             }
             catch (Exception ex)
             {
@@ -535,7 +570,29 @@ Syncing:
             int bytesRead = 0;
             try
             {
-                bytesRead = client.Receive(receiveBuffer);
+				List<Socket> checkRead = new List<Socket> { client };
+				List<Socket> checkError = new List<Socket> { client };
+				// Check if the socket is ready for reading within 5ms
+				Socket.Select(checkRead, null, checkError, 5000);
+
+				if (checkRead.Contains(client))
+				{
+					bytesRead = client.Receive(receiveBuffer);
+				}
+				else if (checkError.Contains(client))
+				{
+                    SuperController.LogError("receive socket error! disconnected");
+                    diagnosticsTextField.text += "receivefail Error: server disconnected. Try to re-register via Discord bot. Or did you try controlling an already controlled look?\n";
+					client.Close();
+					client = null;
+					ClearState();
+				}
+				else
+				{
+					// timeout happened, it's okay, we'll try next time
+					timeoutsSinceLastReceive++;
+					return;
+				}
             }
             catch (SocketException ex)
             {
@@ -547,6 +604,15 @@ Syncing:
                         timeoutsSinceLastReceive++;
                         return;
                     }
+				    else if (ex.SocketErrorCode == SocketError.IOPending)
+				    {
+				    	ioPendingExceptions++;
+						return;
+				    }
+					else if (ex.SocketErrorCode == SocketError.NoBufferSpaceAvailable)
+					{
+						; // bail
+					}
                     SuperController.LogError("Receive Exception SocketException caught: " + ex.Message);
                     diagnosticsTextField.text += "\n" + "socketerrorcode on receive="  + ex.SocketErrorCode + "\n";
                     diagnosticsTextField.text += "receivefail Error: server disconnected. Try to re-register via Discord bot. Or did you try controlling an already controlled look?\n";
@@ -567,6 +633,7 @@ Syncing:
                 client = null;
                 ClearState();
             }
+
             if (bytesRead <= 0)
             {
                 diagnosticsTextField.text += "bytesRead:" + bytesRead + "\n";
@@ -600,7 +667,7 @@ Syncing:
             {
                 // we have "|" in message but last character is not "|", save the partial message
                 partialMsg = responseStr.Substring(endIndex + 1);
-                diagnosticsTextField.text += "HAD PARTIAL MSG\n";
+				partialMessages++;
             }
             responseBuilder.Append(partialMsg);
 
@@ -824,7 +891,10 @@ Syncing:
                 }
                 debugStatsTextField.text = "Avg latency=" + averageLatency + "ms\n" +
                                            "Avg in-flight requests=" + averageInFlightRequests + "\n" +
-                                           "Avg cycles to recv=" + averageReceiveTimeouts;
+                                           "Avg cycles to recv=" + averageReceiveTimeouts + "\n" +
+									  	   "Partial msgs=" + partialMessages + "\n" +
+									  	   "Send timeouts=" + sendTimeouts + "\n" +
+									  	   "IOpending exceptions=" + ioPendingExceptions;
 				// clear
 				averageLatency = 30.0;
 				summedLatencies = 0;
@@ -836,6 +906,7 @@ Syncing:
 				successfulReceivesCount = 0;
 				totalTimeouts = 0;
 				averageReceiveTimeouts = 1.0;
+				// do not clear partial msgs
             }
 
             try
@@ -850,7 +921,7 @@ Syncing:
                 {
                     //if (ticksSinceLastSend >= sendIntervalTicks)
                     // limit in-flight requests
-                    if (sendTimes.Count() <= 15)
+                    if (sendTimes.Count() <= 12)
                     {
                         // our send interval elapsed - time to send a request
                         // note there might be multiple requests in flight at any time
@@ -1171,12 +1242,25 @@ Syncing:
                     // XXX irrelevant if Blocking is false
                     client.SendTimeout = 5000;    // 5 seconds timeout for send operations
                     //client.ReceiveTimeout = 5000; // 5 seconds timeout for receive operations
-                    client.ReceiveTimeout = 2; // 2ms timeout
+                    client.ReceiveTimeout = 5; // 2ms timeout
                 }
 
                 client.Connect(ipEndPoint);
                 // Set as non-blocking from now on
-                //client.Blocking = false;
+                client.Blocking = false;
+                                // Make sure socket is writable after connecting
+                                List<Socket> checkWrite = new List<Socket> { client };
+                                Socket.Select(null, checkWrite, null, 15000 * 1000); // 15-second timeout
+                                if (!checkWrite.Contains(client))
+                                {
+                                    diagnosticsTextField.text += "Err: socket not writable after connect!\n";
+                                        client.Close();
+                                        client = null;
+                                        ClearState();
+                                        SuperController.LogError("Socket not writable after connect!");
+                                    return;
+                                }
+
                 // Clear any state from previous connection
                 ClearState();
 
@@ -1212,6 +1296,8 @@ Syncing:
             inFlightRequestsCount = 0;
             timeoutsSinceLastReceive = 0;
             successfulReceivesCount = 0;
+            partialMessages = 0;
+            sendTimeouts = 0;
             totalTimeouts = 0;
             averageReceiveTimeouts = 1.0;
             sendIntervalTicks = 6; // Initial interval in ticks

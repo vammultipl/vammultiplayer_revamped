@@ -334,12 +334,12 @@ Syncing:
 
                 instructions = new JSONStorableString("Instructions", "Instructions:\n");
                 instructionsTextField = CreateTextField(instructions, true);
-                instructionsTextField.height = 1000f;
+                instructionsTextField.height = 1200f;
                 instructionsTextField.text += instructionsStr;
 
                 debugStats = new JSONStorableString("Debug stats", "Debug stats:\n");
                 debugStatsTextField = CreateTextField(debugStats, true);
-                debugStatsTextField.height = 200f;
+                debugStatsTextField.height = 300f;
             }
             catch (Exception e)
             {

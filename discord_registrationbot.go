@@ -212,7 +212,7 @@ func getCurrentGameStatus() (string, error) {
 		return "", err
 	}
 
-	return fmt.Sprintf("%s\n%s", statusRoom1, statusRoom2), nil
+	return fmt.Sprintf("%s\n%s\n", statusRoom1, statusRoom2), nil
 }
 
 func getRoomStatus(filePath, roomLabel string) (string, error) {
@@ -353,6 +353,7 @@ func updatePlayerStatus(s *discordgo.Session) {
 	if err == nil {
 		if gameStatus != prevPlayerStatus {
 			updateMonitoredChannelsWithStatus(s, gameStatus)
+			prevPlayerStatus = gameStatus
 			// Discord limitation on status length
 			if len(gameStatus) > 125 {
 				s.UpdateCustomStatus("Send /state command to check the state of rooms")
@@ -362,7 +363,6 @@ func updatePlayerStatus(s *discordgo.Session) {
 			if err != nil {
 				log.Println("error updating custom status", err)
 			}
-			prevPlayerStatus = gameStatus
 		}
 	} else {
 		log.Println("error getting game status", err)

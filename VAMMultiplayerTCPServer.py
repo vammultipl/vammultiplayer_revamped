@@ -25,7 +25,7 @@ class VAMMultiplayerServer:
         self.lock = threading.Lock()
 
     def listen(self):
-        self.sock.listen(5)  # Only expecting up to five players.
+        self.sock.listen(8)  # Only expecting up to eight users.
         while True:
             client, address = self.sock.accept()
             logging.info(f"New connection from {address[0]}:{address[1]}")
@@ -153,8 +153,8 @@ class VAMMultiplayerServer:
             if not is_spectator:
                 # Ensure player exists
                 if player_name not in self.players:
-                    if len(self.players) > 4:
-                        logging.error(f"Error: already more than 4 players when trying to add Player with name: {player_name.decode()}")
+                    if len(self.players) > 5:
+                        logging.error(f"Error: already more than 5 players when trying to add Player with name: {player_name.decode()}")
                         return
                     logging.info(f"Adding new player: {player_name.decode()}")
                     self.players[player_name] = {}

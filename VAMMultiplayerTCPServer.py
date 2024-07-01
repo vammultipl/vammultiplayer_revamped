@@ -158,15 +158,12 @@ class VAMMultiplayerServer:
                         return
                     logging.info(f"Adding new player: {player_name.decode()}")
                     self.players[player_name] = {}
-                # Update positions and rotations for the player
+                # Update positions and rotations for the player (also CLOTHES, which is a separate optional target)
                 for update in updates:
                     data = update.split(b",")
-                    if len(data) == 8:
-                        target_name = data[0]
-                        position_data = b",".join(data[1:])
-                        self.players[player_name][target_name] = position_data
-                    else:
-                        logging.error(f"Error: got malformed input (len: {len(data)}, updateStr: {update}, update: {update.decode()}")
+                    target_name = data[0]
+                    target_data = b",".join(data[1:])
+                    self.players[player_name][target_name] = target_data
 
             # Prepare response with all other players' joint data
             response = []
@@ -174,6 +171,8 @@ class VAMMultiplayerServer:
                 if player_name is None or other_player != player_name:
                     for target_name, pos_rot_data in targets.items():
                         response.append(other_player + b"," + target_name + b"," + pos_rot_data)
+                        # TODO if target_name == CLOTHES, only send it once every X requests
+                        # store a per player request counter for that
 
         if response:
             client.sendall(b";".join(response) + b"|")

@@ -52,7 +52,6 @@ class VAMMultiplayerServer:
                 terminator_count = request.count(b"|")
 
                 if terminator_count == 0:
-                    logging.info(f"storing partial message")
                     saved_partial_message += request
                     # sanity check
                     if len(saved_partial_message) > 20000:

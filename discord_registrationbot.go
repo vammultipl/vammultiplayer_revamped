@@ -20,7 +20,7 @@ var (
 	token          string
 	allowlistFile       = "allowlist.txt" // user IP allowlist
 	usernamesFile       = "usernames_ips.txt" // mapping of IPs into usernames
-	expirationTime = 24 * 1 * time.Hour // 24hr expiration
+	expirationTime = 7 * 24 * 1 * time.Hour // 1 week expiration
 	allowlistMutex          sync.Mutex // Mutex to protect access to the allowlist and usernames file
 	prevPlayerStatus string = ""
 	monitoredChannels = make(map[string]time.Time) // monitoring enabled channels by /monitor command

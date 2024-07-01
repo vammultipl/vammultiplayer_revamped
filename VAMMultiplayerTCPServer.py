@@ -21,10 +21,12 @@ class VAMMultiplayerServer:
         self.sock.bind((self.host, self.port))
         self.players = {}
         self.users = {}
+        self.usersLastClothesUpdate = {}
         self.player_to_user = {} # not including spectators
         self.lock = threading.Lock()
 
     def listen(self):
+        self.on_user_change()
         self.sock.listen(8)  # Only expecting up to eight users.
         while True:
             client, address = self.sock.accept()
@@ -106,7 +108,7 @@ class VAMMultiplayerServer:
                     self.handle_disconnect(client, address)
                     return
 
-            self.handle_batch_update(client, False, player_name, updates)
+            self.handle_batch_update(key, client, False, player_name, updates)
 
             # Log IP and player_name changes
             with self.lock:
@@ -123,7 +125,7 @@ class VAMMultiplayerServer:
         else:
             if request == b"S":
                 # spectator mode
-                self.handle_batch_update(client, True, None, None)
+                self.handle_batch_update(key, client, True, None, None)
                 # Log IP for spectator
                 with self.lock:
                     player_name = b"@SPECTATOR@" # can be multiple spectators
@@ -148,7 +150,7 @@ class VAMMultiplayerServer:
 #            else:
 #                client.send(player_name + b" already added to server.")
 
-    def handle_batch_update(self, client, is_spectator, player_name, updates):
+    def handle_batch_update(self, user, client, is_spectator, player_name, updates):
         with self.lock:
             if not is_spectator:
                 # Ensure player exists
@@ -167,12 +169,22 @@ class VAMMultiplayerServer:
 
             # Prepare response with all other players' joint data
             response = []
+            # Do not send clothes update unless enough time has passed - to save traffic
+            send_clothes = False
+            current_time = time.monotonic()
+            last_sent = self.usersLastClothesUpdate.get(user, 0)
+            if current_time - last_sent >= 2.5: #send clothes updates every 3seconds per player
+                self.usersLastClothesUpdate[user] = current_time
+                send_clothes = True
+
             for other_player, targets in self.players.items():
                 if player_name is None or other_player != player_name:
                     for target_name, pos_rot_data in targets.items():
-                        response.append(other_player + b"," + target_name + b"," + pos_rot_data)
-                        # TODO if target_name == CLOTHES, only send it once every X requests
-                        # store a per player request counter for that
+                        if target_name == b"CLOTHES":
+                            if send_clothes:
+                                response.append(other_player + b"," + target_name + b"," + pos_rot_data)
+                        else:
+                            response.append(other_player + b"," + target_name + b"," + pos_rot_data)
 
         if response:
             client.sendall(b";".join(response) + b"|")
@@ -192,6 +204,8 @@ class VAMMultiplayerServer:
                 if player_name in self.player_to_user:
                     del self.player_to_user[player_name]
                 del self.users[key]
+                if key in self.usersLastClothesUpdate:
+                    del self.usersLastClothesUpdate[key]
                 self.on_user_change()
 
     def on_user_change(self):

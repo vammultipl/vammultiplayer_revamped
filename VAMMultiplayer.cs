@@ -957,13 +957,16 @@ Syncing:
                 var localActiveClothesUids = new HashSet<string>(localActiveClothes.Select(c => c.uid));
 
                 // Make hashset out of clothes from server response
-                HashSet<string> responseActiveClothesUids = new HashSet<string>(targetData.Skip(2).ToArray());
+                HashSet<string> responseActiveClothesUids = new HashSet<string>();
+                if (targetData.Length > 2 && !string.IsNullOrEmpty(targetData[2]))
+                {
+                    responseActiveClothesUids = new HashSet<string>(targetData.Skip(2));
+                }
 
                 // Check if both sets contain the same UIDs
                 bool areSameClothes = localActiveClothesUids.SetEquals(responseActiveClothesUids);
                 if (!areSameClothes)
                 {
-                    SuperController.LogMessage("On receive - clothes change detected.");
                     // remote on/off state of clothes for this player differs from local state
                     // sync it:
                     //  - strip what was stripped
@@ -978,7 +981,6 @@ Syncing:
                         var clothing = player.geometry.clothingItems.Where(c => c.uid == clothingUid).FirstOrDefault();
                         if (clothing != null)
                         {
-                            SuperController.LogMessage("Removing clothing: " + clothing.uid);
                             player.geometry.SetActiveClothingItem(clothing, active: false, fromRestore: true);
                         }
                     }
@@ -987,7 +989,6 @@ Syncing:
                         var clothing = player.geometry.clothingItems.Where(c => c.uid == clothingUid).FirstOrDefault();
                         if (clothing != null)
                         {
-                            SuperController.LogMessage("Adding clothing: " + clothing.uid);
                             player.geometry.SetActiveClothingItem(clothing, active: true, fromRestore: true);
                         }
                     }
@@ -1008,11 +1009,6 @@ Syncing:
                    
                     // this comes useful when current user switches between players - after switch the clothes will remain as they were left before
                     player.activeClothesUids = player.geometry.clothingItems.Where(c => c.isActiveAndEnabled).Select(c => c.uid).ToList(); 
-                    SuperController.LogMessage("New list of active clothes:");
-                    foreach (var c in player.activeClothesUids)
-                    {
-                        SuperController.LogMessage(c);
-                    }
                 }
             }
         }

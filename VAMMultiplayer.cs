@@ -472,48 +472,6 @@ Syncing:
                                     .Append(";");
                         // update saved list of clothing
                         player.activeClothesUids = _currentActiveClothes.Select(c => c.uid).ToList();
-
-                        // old code - remove
-                        if (false) //(forceSendClothes || checkClothes)
-                        {
-                            // Now check if clothing for current player changed
-                            var currentActiveClothes = player.geometry.clothingItems.Where(c => c.isActiveAndEnabled).ToList();
-
-                            // Extract UIDs from currentActiveClothes
-                            var currentActiveClothesUids = new HashSet<string>(currentActiveClothes.Select(c => c.uid));
-
-                            // Extract UIDs from the saved list
-                            var savedClothesUids = new HashSet<string>(player.activeClothesUids);
-                            SuperController.LogMessage("Checking clothes. Saved clothes uids:");
-                            foreach (var uid in player.activeClothesUids)
-                            {
-                                SuperController.LogMessage(uid);
-                            }
-                                SuperController.LogMessage("\n");
-                            SuperController.LogMessage("Current clothes uids:");
-                            foreach (var c in currentActiveClothes)
-                            {
-                                SuperController.LogMessage(c.uid);
-                            }
-                                SuperController.LogMessage("\n");
-
-
-                            // Check if both sets contain the same UIDs
-                            bool areSameClothes = currentActiveClothesUids.SetEquals(savedClothesUids);
-                            //if (forceSendClothes || !areSameClothes)
-                            if (!areSameClothes)
-                            {
-                                SuperController.LogMessage("On send - clothes difference detected\n");
-                                // clothes changed since last time, append active clothes list (uids) to request
-                                // format: just add a joint/targetname called CLOTHES and list out the clothes separated by ','
-                                string clothesString = string.Join(",", currentActiveClothesUids.ToArray());
-                                batchedMessage.Append("CLOTHES,")
-                                            .Append(clothesString)
-                                            .Append(";");
-                                // update saved list of clothing
-                                player.activeClothesUids = currentActiveClothes.Select(c => c.uid).ToList();
-                            }
-                        }
                     } else
                     {
                         ;//SuperController.LogError("PLAYER NOT FOUND");

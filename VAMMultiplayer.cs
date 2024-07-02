@@ -872,19 +872,6 @@ Syncing:
                                 // lastClothingUpdate is protected by respMtx mutex
                                 player.lastClothingUpdate = clothesUpdate;
                             }
-                            {
-                                SuperController.LogMessage("got CLOTHES msg");
-                                if (playerIndex != -1)
-                                {
-                                    SuperController.LogMessage("player:" + players[playerIndex].playerName);
-                                    SuperController.LogMessage("CLOTHES UPDATE:" + clothesUpdate);
-                                }
-                                else
-                                {
-                                    SuperController.LogMessage("player:" + "INVALID");
-                                }
-                            }
-
                         }
 
                         respMtx.ReleaseMutex();
@@ -957,12 +944,7 @@ Syncing:
 
                 if (lastClothingUpdate == "")
                 {
-                    SuperController.LogMessage("clothingUpdate empty for player " + player.playerName);
                     continue;
-                }
-                else
-                {
-                    SuperController.LogMessage("clothingUpdate for player " + player.playerName + " = " + lastClothingUpdate);
                 }
 
                 string[] targetData = lastClothingUpdate.Split(',');

@@ -70,7 +70,7 @@ class VAMMultiplayerServer:
                         # request ends with partial message - save it
                         saved_partial_message = messages[-1]
                         messages = messages[:-1]
-                    # XXX: should we process only last message? safer to process all for now
+                    # process all messages - there could be a clothes update in any of them
                     for msg in messages:
                         if len(msg) > 0:
                             self.handle_request(client, msg, address)
@@ -173,7 +173,7 @@ class VAMMultiplayerServer:
             send_clothes = False
             current_time = time.monotonic()
             last_sent = self.usersLastClothesUpdate.get(user, 0)
-            if current_time - last_sent >= 2.5: #send clothes updates every 3seconds per player
+            if current_time - last_sent >= 2.0: #send clothes updates every 2seconds per player
                 self.usersLastClothesUpdate[user] = current_time
                 send_clothes = True
 

@@ -1,4 +1,4 @@
-// VAM Multiplayer
+//// VAM Multiplayer
 // vamrobotics (7-28-2021)
 // https://github.com/vamrobot/vammultiplayer
 // vammultipl (06-15-2024)
@@ -113,22 +113,23 @@ namespace vamrobotics
         private List<string> playerList;
         private List<string> onlinePlayers;
         private List<Player> players;
+        private string lastSentClothesUpdate = ""; //copy of last sent clothes update for current player
 
-	    private static string[] shortTargetNames = new string[] {
+            private static string[] shortTargetNames = new string[] {
         "c", "Hc", "pc", "cc", "hc", "rh", "lh", "rf", "lf", "nc", "et", "rn", "ln",
         "tc", "pb", "pm", "pt", "re", "le", "rk", "lk", "Rt", "Lt", "ac", "a2",
         "rt", "lt", "ra", "la", "rs", "ls"
-	    };
+            };
 
-	    private static string[] longTargetNames = new string[] {
-		"control", "hipControl", "pelvisControl", "chestControl", "headControl",
-		"rHandControl", "lHandControl", "rFootControl", "lFootControl", "neckControl",
-		"eyeTargetControl", "rNippleControl", "lNippleControl", "testesControl",
-		"penisBaseControl", "penisMidControl", "penisTipControl", "rElbowControl",
-		"lElbowControl", "rKneeControl", "lKneeControl", "rToeControl", "lToeControl",
-		"abdomenControl", "abdomen2Control", "rThighControl", "lThighControl",
-		"rArmControl", "lArmControl", "rShoulderControl", "lShoulderControl"
-	    };
+            private static string[] longTargetNames = new string[] {
+                "control", "hipControl", "pelvisControl", "chestControl", "headControl",
+                "rHandControl", "lHandControl", "rFootControl", "lFootControl", "neckControl",
+                "eyeTargetControl", "rNippleControl", "lNippleControl", "testesControl",
+                "penisBaseControl", "penisMidControl", "penisTipControl", "rElbowControl",
+                "lElbowControl", "rKneeControl", "lKneeControl", "rToeControl", "lToeControl",
+                "abdomenControl", "abdomen2Control", "rThighControl", "lThighControl",
+                "rArmControl", "lArmControl", "rShoulderControl", "lShoulderControl"
+            };
 
         public override void Init()
         {
@@ -149,20 +150,51 @@ namespace vamrobotics
                         // Add new Player/'Person' Atom to playerList
                         playerList.Add(atomUID);
 
+                        //clothing example from metachat:
+                        //(where selector = geometry)
+                            //  foreach (DAZDynamicItem dazDynamicItem in ((IEnumerable<DAZClothingItem>) this.selector.clothingItems).Where<DAZClothingItem>((Func<DAZClothingItem, bool>) (m => ((DAZDynamicItem) m).active)))
+                            //  {
+                            //   string uid = dazDynamicItem.uid;
+                                //
+
                         // Create new Player and add Player's Atom's targets to Player's object
                         FreeControllerV3[] targets = tempAtom.freeControllers;
                         Player tempPlayer = new Player(atomUID);
                         foreach (FreeControllerV3 target in targets)
                         {
                             tempPlayer.addTarget(target.name, target.transform.position, target.transform.position, target.transform.rotation, target.transform.rotation);
-                            //SuperController.LogMessage(atomUID);
-                            //SuperController.LogMessage(target.name);
-                            //SuperController.LogMessage(target.transform.position.x.ToString() + "," + target.transform.position.y.ToString()+ "," + target.transform.position.z.ToString());
-                            //SuperController.LogMessage(target.transform.rotation.w.ToString() + "," + target.transform.rotation.x.ToString() + "," + target.transform.rotation.y.ToString() + "," + target.transform.rotation.z.ToString());
                         }
+
+                        // Store clothing
+                        //note DAZClothingItem has: name, uid, containingAtom
+
+// example:
+//SuperController.LogMessage("ATOM UID: " + atomUID + "\n");
+//SuperController.LogMessage(item.name + ":" + item.uid + ":" + item.containingAtom.uid);
+//ATOM UID: Man
+//AIPants:AI Pants:Man
+//AIShirt:AI Shirt:Man
+//AIShoes:AI Shoes:Man
+//ATOM UID: Woman
+//ErrandsShoes:Errands Shoes:Woman
+//CustomClothingItem:PornPlayer.LBD.2:/Custom/Clothing/Female/PornPlayer/LBD/LBD.vam:Woman
+
+                        //DAZClothingItem[] clothes2 = GameObject.FindObjectsOfType< DAZClothingItem >();
+                        tempPlayer.geometry = tempAtom.GetStorableByID("geometry") as DAZCharacterSelector;
+                        // two overloads:
+                        //public void SetActiveClothingItem(DAZClothingItem item, bool active, bool fromRestore = false)
+                        //public void SetActiveClothingItem(string itemId, bool active, bool fromRestore = false)
+                        tempPlayer.activeClothesUids = tempPlayer.geometry.clothingItems.Where(c => c.isActiveAndEnabled).Select(c => c.uid).ToList();
+                        SuperController.LogMessage("ATOM UID: " + atomUID + "\n");
+                        foreach (string uid in tempPlayer.activeClothesUids)
+                        {
+                            SuperController.LogMessage(uid);
+                        }
+                        SuperController.LogMessage("\n");
                         players.Add(tempPlayer);
                     }
                 }
+                SuperController.LogMessage("Done displaying init clothing info.\n");
 
                 // Setup player selector
                 playerChooser = new JSONStorableStringChooser("Player Chooser", playerList, null, "Select Player", PlayerChooserCallback);
@@ -347,25 +379,25 @@ Syncing:
             }
         }
 
-	    public static string TargetShortToLongName(string shortName)
-	    {
-            int index = Array.IndexOf(shortTargetNames, shortName);
-            if (index == -1)
+            public static string TargetShortToLongName(string shortName)
             {
-                throw new ArgumentException("Short name does not exist.");
+                int index = Array.IndexOf(shortTargetNames, shortName);
+                if (index == -1)
+                {
+                    throw new ArgumentException("Short name does not exist.");
+                }
+                return longTargetNames[index];
             }
-            return longTargetNames[index];
-	    }
 
-	    public static string TargetLongToShortName(string longName)
-	    {
+            public static string TargetLongToShortName(string longName)
+            {
             int index = Array.IndexOf(longTargetNames, longName);
             if (index == -1)
             {
                 throw new ArgumentException("Long name does not exist.");
             }
             return shortTargetNames[index];
-	    }
+            }
 
         // to be called on main Unity thread - gathers player quaternions into request message
         protected StringBuilder PrepareRequest()
@@ -399,7 +431,7 @@ Syncing:
                                 {
                                     // Append main player's target position and rotation data to the batched message
                                     // TODO: if value < 0.00001, round down to 0 to save space
-                                    
+
                                     // Optimize transfer - use shortened targetname
                                     string shortTargetName = "";
                                     try
@@ -422,10 +454,64 @@ Syncing:
                                     {
                                     target.rotationOld = targetObject.transform.rotation;
                                     }
-                                } 
+                                }
                                 } else {
                                     ;//SuperController.LogError("TARGETOBJECT NULL 302");
                                 }
+                            }
+                        }
+
+                        // always include clothes in batchedMessage
+                        // as an optimization, sender thread might choose to remove clothes part before sending batchedMessage
+                        // if it knows that the same clothes were already sent to server before
+                        var _currentActiveClothes = player.geometry.clothingItems.Where(c => c.isActiveAndEnabled).ToList();
+                        var _currentActiveClothesUids = new HashSet<string>(_currentActiveClothes.Select(c => c.uid));
+                        string _clothesString = string.Join(",", _currentActiveClothesUids.ToArray());
+                        batchedMessage.Append("CLOTHES,")
+                                    .Append(_clothesString)
+                                    .Append(";");
+                        // update saved list of clothing
+                        player.activeClothesUids = _currentActiveClothes.Select(c => c.uid).ToList();
+
+                        // old code - remove
+                        if (false) //(forceSendClothes || checkClothes)
+                        {
+                            // Now check if clothing for current player changed
+                            var currentActiveClothes = player.geometry.clothingItems.Where(c => c.isActiveAndEnabled).ToList();
+
+                            // Extract UIDs from currentActiveClothes
+                            var currentActiveClothesUids = new HashSet<string>(currentActiveClothes.Select(c => c.uid));
+
+                            // Extract UIDs from the saved list
+                            var savedClothesUids = new HashSet<string>(player.activeClothesUids);
+                            SuperController.LogMessage("Checking clothes. Saved clothes uids:");
+                            foreach (var uid in player.activeClothesUids)
+                            {
+                                SuperController.LogMessage(uid);
+                            }
+                                SuperController.LogMessage("\n");
+                            SuperController.LogMessage("Current clothes uids:");
+                            foreach (var c in currentActiveClothes)
+                            {
+                                SuperController.LogMessage(c.uid);
+                            }
+                                SuperController.LogMessage("\n");
+
+
+                            // Check if both sets contain the same UIDs
+                            bool areSameClothes = currentActiveClothesUids.SetEquals(savedClothesUids);
+                            //if (forceSendClothes || !areSameClothes)
+                            if (!areSameClothes)
+                            {
+                                SuperController.LogMessage("On send - clothes difference detected\n");
+                                // clothes changed since last time, append active clothes list (uids) to request
+                                // format: just add a joint/targetname called CLOTHES and list out the clothes separated by ','
+                                string clothesString = string.Join(",", currentActiveClothesUids.ToArray());
+                                batchedMessage.Append("CLOTHES,")
+                                            .Append(clothesString)
+                                            .Append(";");
+                                // update saved list of clothing
+                                player.activeClothesUids = currentActiveClothes.Select(c => c.uid).ToList();
                             }
                         }
                     } else
@@ -445,6 +531,36 @@ Syncing:
                     batchedMessage.Length = 0; // clear string
                 }
                 return batchedMessage;
+        }
+        // apply any processing to request right before sending
+        // called in network thread
+        protected string PreprocessRequestBeforeSending(string request)
+        {
+            // as an optimization, remove clothes update if it is the same as sent last time
+            if (!request.Contains("CLOTHES"))
+            {
+                return request;
+            }
+            string[] parts = request.Split(';');
+            string lastPart = parts[parts.Length - 1];
+            if (!lastPart.Contains("CLOTHES"))
+            {
+                SuperController.LogError("Error: Clothes update missing in last part of request before processing");
+                return request;
+            }
+            if (lastPart == lastSentClothesUpdate)
+            {
+                // clothes update same as last time, no need to send it again, let's remove it from the request
+                var requestArr = parts.Take(parts.Length - 1).ToArray();
+                return string.Join(";", requestArr);
+            }
+            else
+            {
+                // new clothes update - send it as is and remember what was sent
+                lastSentClothesUpdate = lastPart;
+                return request;
+            }
+            return request;
         }
         protected bool SendRequestToServer(Mutex reqMtx)
         {
@@ -472,7 +588,11 @@ Syncing:
                 {
                     batchedMessage.Remove(batchedMessage.Length - 1, 1);
                 }
-                String request = batchedMessage.ToString() + "|";
+                String request = batchedMessage.ToString();
+                // do any last-minute processing on the request
+                request = PreprocessRequestBeforeSending(request);
+                // add terminator
+                request = request + "|";
                 byte[] data = Encoding.ASCII.GetBytes(request);
 
                 // start point for RTT latency calculation
@@ -481,40 +601,40 @@ Syncing:
                 //stream.BeginWrite(data, 0, data.Length, new AsyncCallback(OnSend), null);
                 bool sendSucceeded = false;
                 // best effort send: we just skip the send if it WOULDBLOCK
-				int totalBytesSent = 0;
-				int bytesLeft = data.Length;
+                                int totalBytesSent = 0;
+                                int bytesLeft = data.Length;
                 try
                 {
-					// send all data
-					while (bytesLeft > 0)
-					{
-						List<Socket> checkWrite = new List<Socket> { client };
-						List<Socket> checkError = new List<Socket> { client };
-						Socket.Select(null, checkWrite, checkError, 300 * 1000); // 300ms timeout for send
-						if (checkWrite.Contains(client))
-						{
-							int bytesSent = client.Send(data, totalBytesSent, bytesLeft, SocketFlags.None);
-							totalBytesSent += bytesSent;
-							bytesLeft -= bytesSent;
+                                        // send all data
+                                        while (bytesLeft > 0)
+                                        {
+                                                List<Socket> checkWrite = new List<Socket> { client };
+                                                List<Socket> checkError = new List<Socket> { client };
+                                                Socket.Select(null, checkWrite, checkError, 300 * 1000); // 300ms timeout for send
+                                                if (checkWrite.Contains(client))
+                                                {
+                                                        int bytesSent = client.Send(data, totalBytesSent, bytesLeft, SocketFlags.None);
+                                                        totalBytesSent += bytesSent;
+                                                        bytesLeft -= bytesSent;
 
-							if (bytesLeft == 0)
-							{
-								sendSucceeded = true;
-							}
-						}
-						else if (checkError.Contains(client))
-						{
-							diagnosticsTextField.text += "sendfailed Error: socket error.\n";
-							break;
-						}
-						else
-						{
-							// send timeout - bail
-							// XXX: what if we sent part of message in this loop - we still return to caller like we didn't
-							sendTimeouts++;
-							break;
-						}
-					}
+                                                        if (bytesLeft == 0)
+                                                        {
+                                                                sendSucceeded = true;
+                                                        }
+                                                }
+                                                else if (checkError.Contains(client))
+                                                {
+                                                        diagnosticsTextField.text += "sendfailed Error: socket error.\n";
+                                                        break;
+                                                }
+                                                else
+                                                {
+                                                        // send timeout - bail
+                                                        // XXX: what if we sent part of message in this loop - we still return to caller like we didn't
+                                                        sendTimeouts++;
+                                                        break;
+                                                }
+                                        }
                 }
                 catch (SocketException ex)
                 {
@@ -524,14 +644,14 @@ Syncing:
                         {
                             diagnosticsTextField.text += "sendfailed Error: SEND TIMEOUT\n";
                         }
-						else if (ex.SocketErrorCode == SocketError.IOPending)
-						{
-							ioPendingExceptions++;
-						}
-						else if (ex.SocketErrorCode == SocketError.NoBufferSpaceAvailable)
-						{
-							; // bail
-						}
+                                                else if (ex.SocketErrorCode == SocketError.IOPending)
+                                                {
+                                                        ioPendingExceptions++;
+                                                }
+                                                else if (ex.SocketErrorCode == SocketError.NoBufferSpaceAvailable)
+                                                {
+                                                        ; // bail
+                                                }
                         else
                         {
                             SuperController.LogError("SocketException caught: " + ex.Message);
@@ -543,7 +663,7 @@ Syncing:
                     }
                     else
                     {
-						; // WOULDBLOCK - bail
+                                                ; // WOULDBLOCK - bail
                     }
                 }
                 return sendSucceeded;
@@ -570,29 +690,37 @@ Syncing:
             int bytesRead = 0;
             try
             {
-				List<Socket> checkRead = new List<Socket> { client };
-				List<Socket> checkError = new List<Socket> { client };
-				// Check if the socket is ready for reading within 5ms
-				Socket.Select(checkRead, null, checkError, 5000);
+                                List<Socket> checkRead = new List<Socket> { client };
+                                List<Socket> checkError = new List<Socket> { client };
+                                // Check if the socket is ready for reading within 5ms
+                                Socket.Select(checkRead, null, checkError, 5000);
 
-				if (checkRead.Contains(client))
-				{
-					bytesRead = client.Receive(receiveBuffer);
-				}
-				else if (checkError.Contains(client))
-				{
-                    SuperController.LogError("receive socket error! disconnected");
-                    diagnosticsTextField.text += "receivefail Error: server disconnected. Try to re-register via Discord bot. Or did you try controlling an already controlled look?\n";
-					client.Close();
-					client = null;
-					ClearState();
-				}
-				else
-				{
-					// timeout happened, it's okay, we'll try next time
-					timeoutsSinceLastReceive++;
-					return;
-				}
+                                if (checkRead.Contains(client))
+                                {
+                                        bytesRead = client.Receive(receiveBuffer);
+                                        if (bytesRead == 0)
+                                        {
+                                            SuperController.LogError("receive socket error! server disconnected");
+                                            diagnosticsTextField.text += "receivefail Error: server disconnected. Try to re-register via Discord bot. Or did you try controlling an already controlled look?\n";
+                                            client.Close();
+                                            client = null;
+                                            ClearState();
+                                        }
+                                }
+                                else if (checkError.Contains(client))
+                                {
+                                        SuperController.LogError("receive socket error! disconnected");
+                                        diagnosticsTextField.text += "receivefail Error: server disconnected. Try to re-register via Discord bot. Or did you try controlling an already controlled look?\n";
+                                        client.Close();
+                                        client = null;
+                                        ClearState();
+                                }
+                                else
+                                {
+                                        // timeout happened, it's okay, we'll try next time
+                                        timeoutsSinceLastReceive++;
+                                        return;
+                                }
             }
             catch (SocketException ex)
             {
@@ -604,15 +732,15 @@ Syncing:
                         timeoutsSinceLastReceive++;
                         return;
                     }
-				    else if (ex.SocketErrorCode == SocketError.IOPending)
-				    {
-				    	ioPendingExceptions++;
-						return;
-				    }
-					else if (ex.SocketErrorCode == SocketError.NoBufferSpaceAvailable)
-					{
-						; // bail
-					}
+                                    else if (ex.SocketErrorCode == SocketError.IOPending)
+                                    {
+                                        ioPendingExceptions++;
+                                                return;
+                                    }
+                                        else if (ex.SocketErrorCode == SocketError.NoBufferSpaceAvailable)
+                                        {
+                                                ; // bail
+                                        }
                     SuperController.LogError("Receive Exception SocketException caught: " + ex.Message);
                     diagnosticsTextField.text += "\n" + "socketerrorcode on receive="  + ex.SocketErrorCode + "\n";
                     diagnosticsTextField.text += "receivefail Error: server disconnected. Try to re-register via Discord bot. Or did you try controlling an already controlled look?\n";
@@ -667,7 +795,7 @@ Syncing:
             {
                 // we have "|" in message but last character is not "|", save the partial message
                 partialMsg = responseStr.Substring(endIndex + 1);
-				partialMessages++;
+                                partialMessages++;
             }
             responseBuilder.Append(partialMsg);
 
@@ -679,39 +807,103 @@ Syncing:
             // we need to dequeue from sendTimes for all the ignored messages
             if (messages.Length > 0)
             {
-                for (int i = 0; i < messages.Length - 1; i++)
-                {
-                    // dequeue everything except last one
-                    if (sendTimes.Count > 0)
-                    {
-                        long foo = sendTimes.Dequeue();
-                    }
-                }
+               // for (int i = 0; i < messages.Length - 1; i++)
+               // {
+               //     // dequeue everything except last one
+               //     if (sendTimes.Count > 0)
+               //     {
+               //         long foo = sendTimes.Dequeue();
+               //     }
+               // }
 
-                // Process last message as it has the latest update
-                if (!string.IsNullOrEmpty(messages[messages.Length - 1]))
-                {
-                    string resp = ProcessResponse(messages[messages.Length - 1] + "|", sw);
+               // // Process last message as it has the latest update
+               // if (!string.IsNullOrEmpty(messages[messages.Length - 1]))
+               // {
+               //     string resp = ProcessResponse(messages[messages.Length - 1] + "|", sw);
 
-                    bool gotMutex = respMtx.WaitOne(1000);
-                    if (!gotMutex)
+               //     bool gotMutex = respMtx.WaitOne(1000);
+               //     if (!gotMutex)
+               //     {
+               //         return;
+               //     }
+               //     // put the response we got into a global to be applied in FixedUpdate
+               //     responseGlobal = resp;
+               //     respMtx.ReleaseMutex();
+               // }
+
+               // Process each message (we could just read the last one but we could miss the periodic clothes update)
+                foreach (string msg in messages)
+                {
+                    if (!string.IsNullOrEmpty(msg))
                     {
-                        return;
+                        string resp = ProcessResponse(msg + "|", sw);
+
+                        bool gotMutex = respMtx.WaitOne(1000);
+                        if (!gotMutex)
+                        {
+                            return;
+                        }
+                        // put the response we got into a global to be applied in FixedUpdate
+                        // we chould be updating responseGlobal many times before FixedUpdate gets to run and process it - this is fine
+                        // as only latest response is relevant, previous can be ignored.
+                        // the exception from that is clothing updates - see below
+                        responseGlobal = resp;
+
+                        // if this msg has a clothing update - store it in Player object and make sure it gets received and applied
+                        if (msg.Contains("CLOTHES"))
+                        {
+                            string[] responses = msg.Split(';');
+                            if (responses.Length - 1 < 0)
+                            {
+                                SuperController.LogError("Error: unexpected format for clothes update");
+                            }
+                            string clothesUpdate = responses[responses.Length - 1];
+                            if (!clothesUpdate.Contains("CLOTHES"))
+                            {
+                                SuperController.LogError("Error: unexpected format for clothes update - no CLOTHES");
+                            }
+                            string[] targetData = clothesUpdate.Split(',');
+                            string playerName = targetData[0];
+                            // store latest clothes update in Player object
+                            int playerIndex = players.FindIndex(p => p.playerName == playerName);
+                            if (playerIndex != -1)
+                            {
+                                Player player = players[playerIndex];
+                                // lastClothingUpdate is protected by respMtx mutex
+                                player.lastClothingUpdate = clothesUpdate;
+                            }
+                            {
+                                SuperController.LogMessage("got CLOTHES msg");
+                                if (playerIndex != -1)
+                                {
+                                    SuperController.LogMessage("player:" + players[playerIndex].playerName);
+                                    SuperController.LogMessage("CLOTHES UPDATE:" + clothesUpdate);
+                                }
+                                else
+                                {
+                                    SuperController.LogMessage("player:" + "INVALID");
+                                }
+                            }
+
+                        }
+
+                        respMtx.ReleaseMutex();
                     }
-                    // put the response we got into a global to be applied in FixedUpdate
-                    responseGlobal = resp;
-                    respMtx.ReleaseMutex();
                 }
             }
         }
         protected string ProcessResponse(string response, Stopwatch sw)
         {
+            long currentTimestamp = 0;
+            if (sw != null)
+            {
+                currentTimestamp = sw.ElapsedMilliseconds;
+            }
             if (sendTimes.Count > 0)
             {
                 // get timestamp of when request was sent
                 long sentTimestamp = sendTimes.Dequeue();
                 // calculate latency in ms between request and response
-                long currentTimestamp = sw.ElapsedMilliseconds;
                 long responseLatency = currentTimestamp - sentTimestamp;
 
                 // update debug statistics
@@ -738,6 +930,111 @@ Syncing:
             return response;
         }
 
+        // called in FixedUpdate()
+        // check if updates from server on clothes of players differ from our state
+        // if there is a difference - apply new clothes
+        protected void ApplyLatestClothesUpdates()
+        {
+            // targetData[1] is "CLOTHES"
+            // targetData[2] and higher contain clothes UIDs
+            foreach (var player in players)
+            {
+                // don't apply update for our own player
+                if (player.playerName == playerChooser.val && !spectatorModeBool.val)
+                {
+                    continue;
+                }
+
+                // get latest clothing update for player
+                string lastClothingUpdate = "";
+                bool gotMutex = responseMtx.WaitOne(200);
+                if (!gotMutex)
+                {
+                    return;
+                }
+                lastClothingUpdate = player.lastClothingUpdate;
+                responseMtx.ReleaseMutex();
+
+                if (lastClothingUpdate == "")
+                {
+                    SuperController.LogMessage("clothingUpdate empty for player " + player.playerName);
+                    continue;
+                }
+                else
+                {
+                    SuperController.LogMessage("clothingUpdate for player " + player.playerName + " = " + lastClothingUpdate);
+                }
+
+                string[] targetData = lastClothingUpdate.Split(',');
+                string playerName = targetData[0];
+
+                // Now check if clothing for this player changed vs what we currently have
+                var localActiveClothes = player.geometry.clothingItems.Where(c => c.isActiveAndEnabled).ToList();
+
+                // Extract UIDs from currentActiveClothes
+                var localActiveClothesUids = new HashSet<string>(localActiveClothes.Select(c => c.uid));
+
+                // Make hashset out of clothes from server response
+                HashSet<string> responseActiveClothesUids = new HashSet<string>(targetData.Skip(2).ToArray());
+
+                // Check if both sets contain the same UIDs
+                bool areSameClothes = localActiveClothesUids.SetEquals(responseActiveClothesUids);
+                if (!areSameClothes)
+                {
+                    SuperController.LogMessage("On receive - clothes change detected.");
+                    // remote on/off state of clothes for this player differs from local state
+                    // sync it:
+                    //  - strip what was stripped
+                    //  - apply new active clothes from response
+
+                    // Determine which clothes need to be removed and which need to be added
+                    var clothesToRemove = localActiveClothesUids.Except(responseActiveClothesUids);
+                    var clothesToAdd = responseActiveClothesUids.Except(localActiveClothesUids);
+
+                    foreach (var clothingUid in clothesToRemove)
+                    {
+                        var clothing = player.geometry.clothingItems.Where(c => c.uid == clothingUid).FirstOrDefault();
+                        if (clothing != null)
+                        {
+                            SuperController.LogMessage("Removing clothing: " + clothing.uid);
+                            player.geometry.SetActiveClothingItem(clothing, active: false, fromRestore: true);
+                        }
+                    }
+                    foreach (var clothingUid in clothesToAdd)
+                    {
+                        var clothing = player.geometry.clothingItems.Where(c => c.uid == clothingUid).FirstOrDefault();
+                        if (clothing != null)
+                        {
+                            SuperController.LogMessage("Adding clothing: " + clothing.uid);
+                            player.geometry.SetActiveClothingItem(clothing, active: true, fromRestore: true);
+                        }
+                    }
+
+                   // // Strip player:
+                   // player.geometry.clothingItems.Where(c => c.isActiveAndEnabled).ToList().ForEach((clothing) =>
+                   // {
+                   //     player.geometry.SetActiveClothingItem(clothing, active: false);
+                   // });
+                   // // Put on clothes from response:
+                   // var clothesToPutOn = player.geometry.clothingItems
+                   // .Where(c => responseActiveClothesUids.Contains(c.uid))
+                   // .ToList();
+                   // foreach (var clothing in clothesToPutOn)
+                   // {
+                   //     player.geometry.SetActiveClothingItem(clothing, active: true);
+                   // }
+                   
+                    // this comes useful when current user switches between players - after switch the clothes will remain as they were left before
+                    player.activeClothesUids = player.geometry.clothingItems.Where(c => c.isActiveAndEnabled).Select(c => c.uid).ToList(); 
+                    SuperController.LogMessage("New list of active clothes:");
+                    foreach (var c in player.activeClothesUids)
+                    {
+                        SuperController.LogMessage(c);
+                    }
+                }
+            }
+        }
+
         // parse response and apply quaternions from other players
         // to be called in Unity main thread
         protected void ActuallyProcessResponse(String response)
@@ -760,70 +1057,69 @@ Syncing:
                         string trimmedRes = res.TrimEnd('|');
                         string[] targetData = trimmedRes.Split(',');
 
-                        if (targetData.Length == 9)
+                        // Make sure we have that player first
+                        int playerIdx = players.FindIndex(p => p.playerName == targetData[0]);
+                        if (playerIdx != -1)
                         {
-                            // Make sure we have that player first
-                            int playerIdx = players.FindIndex(p => p.playerName == targetData[0]);
-                            if (playerIdx != -1)
+                            // Update list of active players if needed
+                            // Display in diag window if there is any new player
+                            if (!latestOnlinePlayers.Contains(targetData[0]))
                             {
-                                // Update list of active players if needed
-                                // Display in diag window if there is any new player
-                                if (!latestOnlinePlayers.Contains(targetData[0]))
-                                {
-                                    latestOnlinePlayers.Add(targetData[0]);
-                                }
-                                if (!onlinePlayers.Contains(targetData[0]))
-                                {
-                                    onlinePlayers.Add(targetData[0]);
-                                    diagnosticsTextField.text += targetData[0] + " joined." + "\n";
-                                }
-                                Atom otherPlayerAtom = SuperController.singleton.GetAtomByUid(targetData[0]);
-                                // restore original target name
-                                string longTargetName = "";
-                                try
-                                {
-                                    longTargetName = TargetShortToLongName(targetData[1]);
-                                }
-                                catch (Exception ex)
-                                {
-                                    SuperController.LogError("Exception caught: " + ex.Message);
-                                }
-                                FreeControllerV3 targetObject = otherPlayerAtom.GetStorableByID(longTargetName) as FreeControllerV3;
+                                latestOnlinePlayers.Add(targetData[0]);
+                            }
+                            if (!onlinePlayers.Contains(targetData[0]))
+                            {
+                                onlinePlayers.Add(targetData[0]);
+                                diagnosticsTextField.text += targetData[0] + " joined." + "\n";
+                            }
+                            Atom otherPlayerAtom = SuperController.singleton.GetAtomByUid(targetData[0]);
+                            if (targetData[1] == "CLOTHES")
+                            {
+                                // skip CLOTHES update for now, we apply latest CLOTHES update later in FixedUpdate() parsed out from a separate variable
+                                continue;
+                            }
 
-                                if (targetObject != null)
+                            // restore original target name
+                            string longTargetName = "";
+                            try
+                            {
+                                longTargetName = TargetShortToLongName(targetData[1]);
+                            }
+                            catch (Exception ex)
+                            {
+                                SuperController.LogError("Exception caught: " + ex.Message);
+                            }
+                            FreeControllerV3 targetObject = otherPlayerAtom.GetStorableByID(longTargetName) as FreeControllerV3;
+
+                            if (targetObject != null)
+                            {
+                                if (positionsBool.val)
                                 {
-                                    if (positionsBool.val)
-                                    {
-                                        Vector3 tempPosition = targetObject.transform.position;
-                                        tempPosition.x = float.Parse(targetData[2]);
-                                        tempPosition.y = float.Parse(targetData[3]);
-                                        tempPosition.z = float.Parse(targetData[4]);
+                                    Vector3 tempPosition = targetObject.transform.position;
+                                    tempPosition.x = float.Parse(targetData[2]);
+                                    tempPosition.y = float.Parse(targetData[3]);
+                                    tempPosition.z = float.Parse(targetData[4]);
 
-                                        targetObject.transform.position = tempPosition;
-                                    }
-
-                                    if (rotationsBool.val)
-                                    {
-                                        Quaternion tempRotation = targetObject.transform.rotation;
-                                        tempRotation.w = float.Parse(targetData[5]);
-                                        tempRotation.x = float.Parse(targetData[6]);
-                                        tempRotation.y = float.Parse(targetData[7]);
-                                        tempRotation.z = float.Parse(targetData[8]);
-
-                                        targetObject.transform.rotation = tempRotation;
-                                    }
+                                    targetObject.transform.position = tempPosition;
                                 }
-                                else {
-                                    ;//SuperController.LogError("TARGET OBJECT NULL");
+
+                                if (rotationsBool.val)
+                                {
+                                    Quaternion tempRotation = targetObject.transform.rotation;
+                                    tempRotation.w = float.Parse(targetData[5]);
+                                    tempRotation.x = float.Parse(targetData[6]);
+                                    tempRotation.y = float.Parse(targetData[7]);
+                                    tempRotation.z = float.Parse(targetData[8]);
+
+                                    targetObject.transform.rotation = tempRotation;
                                 }
                             }
                             else {
-                                ;//SuperController.LogError("PLAYER NOT FOUND AGAIN" + targetData[0]);
+                                ;//SuperController.LogError("TARGET OBJECT NULL");
                             }
                         }
-                        else
-                        {
-                            ;//SuperController.LogError("Malformed server response: " + res);
+                        else {
+                            ;//SuperController.LogError("PLAYER NOT FOUND AGAIN" + targetData[0]);
                         }
                     } else {
                             ;//SuperController.LogError("NONE RESPONSE");
@@ -855,7 +1151,7 @@ Syncing:
         // Background thread loop doing networking
         private void NetworkLoop(Mutex reqMtx, Mutex respMtx)
         {
-	    // Start stopwatch that will go continuously, never stopping (until we disconnect)
+            // Start stopwatch that will go continuously, never stopping (until we disconnect)
             Stopwatch sw = Stopwatch.StartNew();
             while (isLooping)
             {
@@ -892,21 +1188,21 @@ Syncing:
                 debugStatsTextField.text = "Avg latency=" + averageLatency + "ms\n" +
                                            "Avg in-flight requests=" + averageInFlightRequests + "\n" +
                                            "Avg cycles to recv=" + averageReceiveTimeouts + "\n" +
-									  	   "Partial msgs=" + partialMessages + "\n" +
-									  	   "Send timeouts=" + sendTimeouts + "\n" +
-									  	   "IOpending exceptions=" + ioPendingExceptions;
-				// clear
-				averageLatency = 30.0;
-				summedLatencies = 0;
-				latenciesCount = 0;
-				averageInFlightRequests = 1.0;
-				summedInFlightRequests = 0;
-				inFlightRequestsCount = 0;
-				timeoutsSinceLastReceive = 0;
-				successfulReceivesCount = 0;
-				totalTimeouts = 0;
-				averageReceiveTimeouts = 1.0;
-				// do not clear partial msgs
+                                                                                   "Partial msgs=" + partialMessages + "\n" +
+                                                                                   "Send timeouts=" + sendTimeouts + "\n" +
+                                                                                   "IOpending exceptions=" + ioPendingExceptions;
+                                // clear
+                                averageLatency = 30.0;
+                                summedLatencies = 0;
+                                latenciesCount = 0;
+                                averageInFlightRequests = 1.0;
+                                summedInFlightRequests = 0;
+                                inFlightRequestsCount = 0;
+                                timeoutsSinceLastReceive = 0;
+                                successfulReceivesCount = 0;
+                                totalTimeouts = 0;
+                                averageReceiveTimeouts = 1.0;
+                                // do not clear partial msgs
             }
 
             try
@@ -966,7 +1262,14 @@ Syncing:
             // apply quaternions from response
             ActuallyProcessResponse(latestResp);
 
+            // check for clothes change of local player every ~1s
+            if ((fixedUpdateCounter % 100) == 0)
+            {
+                // apply latest clothes update (must be stored and retrieved separately as it doesn't come in every message)
+                ApplyLatestClothesUpdates();
+            }
             // put local player quaternions into message
+            //StringBuilder batchedMessage = PrepareRequest(checkClothes);
             StringBuilder batchedMessage = PrepareRequest();
             gotMutex = requestMtx.WaitOne(200); // try to get mutex for 0.2ms
             if (!gotMutex)
@@ -982,6 +1285,8 @@ Syncing:
             // BY SLEEPING A BIT IN FIXEDUPDATE
             // OTHERWISE FPS TANK TO <10
             //Thread.Sleep(5);
+
+            fixedUpdateCounter++;
         }
 
         protected bool CheckIfTargetIsUpdateable(string targetName)
@@ -1268,7 +1573,7 @@ Syncing:
                 //diagnosticsTextField.text += "Connecting..\n";
 
                 SuperController.LogMessage("Connected to server: " + serverChooser.val + ":" + portChooser.val);
-                
+
                 requestMtx = new Mutex();
                 responseMtx = new Mutex();
                 thread = new Thread(() => NetworkLoop(requestMtx, responseMtx));
@@ -1305,6 +1610,7 @@ Syncing:
             responseBuilder.Length = 0;
             requestGlobal.Length = 0;
             responseGlobal = "";
+            lastSentClothesUpdate = "";
         }
         protected void DisconnectFromServerCallback()
         {
@@ -1387,12 +1693,16 @@ Syncing:
     {
         public string playerName;
         public List<TargetData> playerTargets;
+        public DAZCharacterSelector geometry;
+        public List<string> activeClothesUids; // used mostly in sending so that we can determine if local player's clothing has changed - then send update
+        public string lastClothingUpdate = ""; // store last clothing update for this player, parsed out of server response
 
         public Player(string name)
         {
             playerName = name;
 
             playerTargets = new List<TargetData>();
+            activeClothesUids = new List<string>();
         }
 
         public void addTarget(string name, Vector3 pos, Vector3 posOld, Quaternion rot, Quaternion rotOld)
@@ -1417,3 +1727,4 @@ Syncing:
         }
     }
 }
+

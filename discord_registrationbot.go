@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"os"
 	"os/signal"
@@ -37,6 +38,14 @@ func main() {
 	}
 	defer tokenFile.Close()
 
+        // Read the channel name from the file
+        channelName, err := readChannelNameFromFile("bot_discord_channel_name.txt")
+        if err != nil {
+            log.Println("Error reading channel name:", err)
+            log.Println("Quitting..")
+            return
+        }
+
 	scanner := bufio.NewScanner(tokenFile)
 	if scanner.Scan() {
 		token = scanner.Text()
@@ -55,7 +64,9 @@ func main() {
 	}
 
 	// Register the messageCreate func as a callback for MessageCreate events.
-	dg.AddHandler(messageCreate)
+        dg.AddHandler(func(s *discordgo.Session, m *discordgo.MessageCreate) {
+            messageCreate(s, m, channelName)
+        })
 	// In this example, we only care about receiving message events.
 	dg.Identify.Intents = discordgo.IntentsGuildMessages | discordgo.IntentsDirectMessages
 
@@ -81,7 +92,24 @@ func main() {
 	dg.Close()
 }
 
-func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
+func readChannelNameFromFile(filename string) (string, error) {
+    content, err := ioutil.ReadFile(filename)
+    if err != nil {
+        return "", err
+    }
+
+    lines := strings.Split(string(content), "\n")
+    for _, line := range lines {
+        trimmedLine := strings.TrimSpace(line)
+        if trimmedLine != "" && !strings.HasPrefix(trimmedLine, "#") {
+            return trimmedLine, nil
+        }
+    }
+
+    return "", fmt.Errorf("no valid channel name found in the file")
+}
+
+func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate, allowedChannelName string) {
 	// Ignore all messages created by the bot itself
 	if m.Author.ID == s.State.User.ID {
 		return
@@ -94,10 +122,11 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 		return
 	}
 
-	// Ignore messages in #general
-	if channel.Name == "general" {
-		return
-	}
+        // Only respond to messages in the allowed channel or DMs
+        if channel.Type != discordgo.ChannelTypeDM && channel.Name != allowedChannelName {
+            return
+        }
+
 	log.Println("Got message: ", m.Content)
 
 	// Check if the message starts with "/register"

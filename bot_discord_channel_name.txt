@@ -1,0 +1,6 @@
+# This file should contain the name of the Discord channel where the bot will respond
+# The bot also responds to DMs
+# You can add comments like this, they will be ignored
+# Empty lines are also ignored
+
+vam-mp-bot

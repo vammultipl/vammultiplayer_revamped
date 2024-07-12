@@ -112,7 +112,7 @@ Instead:
 - chat is via Discord :)
 
 ## Additional Help
-- Visit the [this Discord server](https://discord.gg/45dxAsGG) where we have a small community of players. We also hang out in MetaChat and VamChat servers.
+- Visit the [this Discord server](https://discord.gg/45dxAsGG) where we have a small community of players and scene makers. We also hang out in MetaChat and VamChat servers.
 - Recall the great guide made by VamMoose on the old Metachat plugin:
 
 Read section 4.5:

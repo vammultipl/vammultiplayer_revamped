@@ -6,6 +6,8 @@ This project expands on vamrobot's VaM Multiplayer Plugin:
 ## Overview
 I have launched a centralized Linux server in Azure and added simple user registration via a Discord bot, eliminating the need for complex VPN or tunneling setups. This makes the plugin as easy to use as the MetaChat plugin.
 
+[**TL;DR below**](https://github.com/vammultipl/vammultiplayer_revamped?tab=readme-ov-file#tldr-i-came-from-metachat---how-do-i-use-this)
+
 ### New Features
 - Centralized server
 - Simple user registration by IP and lobby monitoring via Discord bot

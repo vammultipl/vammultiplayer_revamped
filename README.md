@@ -100,6 +100,7 @@ If you can't connect to the server, it might be due to:
 ## TL;DR I came from Metachat - how do I use this?
 MetaChat had web registration, lobbies with visible scenes, an in-game menu to synchronize other people's looks, and also a chat. This has none of that.
 Instead:
+- join [this Discord server](https://discord.gg/45dxAsGG)
 - registration is via Discord bot: `/register <your_IP>`
 - to check who's playing - ask Discord bot or register for notifications
 - scene is pre-shared and all players in a lobby should load the same one

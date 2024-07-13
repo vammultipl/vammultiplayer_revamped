@@ -131,14 +131,13 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate, allowedChan
 
 	// Check if the message starts with "/register"
 	if strings.HasPrefix(m.Content, "/register") {
-		st, err := s.Channel(m.ChannelID)
-		if err != nil {
-			log.Println("Error retrieving Channel type")
-			return
-		}
-
-		if st.Type != discordgo.ChannelTypeDM {
-			log.Println("/register command sent not in DM - ignoring")
+		if channel.Type != discordgo.ChannelTypeDM {
+			log.Println("/register command sent not in DM - deleting msg and warning user")
+		        // Delete the user's message
+		        err := s.ChannelMessageDelete(m.ChannelID, m.ID)
+		        if err != nil {
+		            log.Println("Error deleting message:", err)
+		        }
 			s.ChannelMessageSend(m.ChannelID, "Send /register commands via DM only.")
 			return
 		}

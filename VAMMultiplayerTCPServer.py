@@ -7,6 +7,7 @@
 import socket
 import threading
 import sys
+import struct
 import time
 import logging
 
@@ -99,7 +100,7 @@ class VAMMultiplayerServer:
             logging.error(f"Allowlist file {filename} not found.")
         return allowlist
 
-    def parse_initial_frame(data):
+    def parse_initial_frame(self, data):
         # Extract version information
         major, minor, patch = struct.unpack('BBB', data[len(MAGIC_NUMBER):len(MAGIC_NUMBER)+3])
 
@@ -126,7 +127,7 @@ class VAMMultiplayerServer:
             # Check magic number
             if request[:len(MAGIC_NUMBER)] == MAGIC_NUMBER:
                 # Handle initial frame and return
-                scene_name, err_str = parse_initial_frame(request)
+                scene_name, err_str = self.parse_initial_frame(request)
                 if err_str:
                     client.sendall(b"{err_str}|")
                 else:

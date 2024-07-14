@@ -20,6 +20,11 @@ namespace vamrobotics
 {
     class VAMMultiplayer : MVRScript
     {
+        // PROTOCOL VERSION - UPDATE THIS WHEN CHANGING THE PROTOCOL
+        byte majorVersion = 1;
+        byte minorVersion = 0;
+        byte patchVersion = 0;
+
         private Socket client;
         // timestamps of when we sent requests
         // used also to track requests in flight
@@ -1454,6 +1459,75 @@ Syncing:
             SuperController.LogMessage("Protocol " + protocol + " selected.");
         }
 
+        protected string GetCurrentSceneVarName()
+        {
+            var sceneDir = SuperController.singleton.currentLoadDir;
+            var _sceneVar = sceneDir;
+            if (sceneDir.Contains(":"))
+            {
+                var sceneDirSplit = sceneDir.Split(':');
+                _sceneVar = sceneDirSplit[0];
+            }
+            return _sceneVar;
+        }
+
+        protected byte[] PrepareInitialFrame(string sceneVarName)
+        {
+            byte[] magicNumber = new byte[] { 0x49, 0x4E, 0x49, 0x54, 0x46, 0x52, 0x41, 0x4D, 0x45 }; // INITFRAME
+
+            using (MemoryStream ms = new MemoryStream())
+            {
+                // send INITFRAME magic, then 3 bytes of netcode protocol version
+                ms.Write(magicNumber, 0, magicNumber.Length);
+                ms.WriteByte(majorVersion);
+                ms.WriteByte(minorVersion);
+                ms.WriteByte(patchVersion);
+                // send scene var name in ASCII, append frame terminator
+                byte[] sceneData = Encoding.UTF8.GetBytes(sceneVarName + "|");
+                ms.Write(sceneData, 0, sceneData.Length);
+                return ms.ToArray();
+            }
+        }
+
+        protected void SendInitialRequestFrame(byte[] requestData)
+        {
+            int bytesSent = 0;
+            while (bytesSent < requestData.Length)
+            {
+                int sent = client.Send(requestData, bytesSent, requestData.Length - bytesSent, SocketFlags.None);
+                if (sent == 0)
+                    throw new SocketException();
+                bytesSent += sent;
+            }
+        }
+
+        protected string ReceiveInitialResponseFrame()
+        {
+            StringBuilder responseBuilder = new StringBuilder();
+            byte[] buffer = new byte[64 * 1024];
+            int bytesRead;
+
+            while (true)
+            {
+                bytesRead = client.Receive(buffer);
+                if (bytesRead == 0)
+                    throw new SocketException();
+
+                string chunk = Encoding.UTF8.GetString(buffer, 0, bytesRead);
+                responseBuilder.Append(chunk);
+
+                if (chunk.EndsWith("|"))
+                    break;
+            }
+
+            return responseBuilder.ToString().TrimEnd('|');
+        }
+
+        protected void HandleInitialResponseFrame(string response)
+        {
+            SuperController.LogMessage($"Received initial response: {response}");
+        }
+
         protected void ConnectToServerCallback()
         {
             //  Ignore if already connected
@@ -1487,6 +1561,28 @@ Syncing:
                 }
 
                 client.Connect(ipEndPoint);
+
+                // Get name of currently loaded scene var
+                string sceneVarName = GetCurrentSceneVarName();
+
+                byte[] initialFrame = PrepareInitialFrame(sceneVarName);
+                SuperController.LogMessage("Sending scene name to server: " + sceneVarName);
+                // Send initial request frame containing name of local scene var
+                SendInitialRequestFrame(initialFrame);
+
+                // Receive initial response frame
+                string initialResponse = ReceiveInitialResponseFrame();
+
+                // Handle the initial response
+                HandleInitialResponseFrame(initialResponse);
+
+                // Clear any state from previous connection
+                ClearState();
+
+                SuperController.LogMessage("Connected to server: " + serverChooser.val + ":" + portChooser.val);
+                diagnosticsTextField.text += "Connected to server: " + serverChooser.val + ":" + portChooser.val + "\n";
+                diagnosticsTextField.text += "Got initial frame from server: \n" + initialResponse + "\n";
+
                 // Set as non-blocking from now on
                 client.Blocking = false;
                                 // Make sure socket is writable after connecting
@@ -1501,14 +1597,6 @@ Syncing:
                                         SuperController.LogError("Socket not writable after connect!");
                                     return;
                                 }
-
-                // Clear any state from previous connection
-                ClearState();
-
-                diagnosticsTextField.text += "Connected to server: " + serverChooser.val + ":" + portChooser.val + "\n";
-                //diagnosticsTextField.text += "Connecting..\n";
-
-                SuperController.LogMessage("Connected to server: " + serverChooser.val + ":" + portChooser.val);
 
                 requestMtx = new Mutex();
                 responseMtx = new Mutex();

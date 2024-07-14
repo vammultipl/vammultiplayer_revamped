@@ -1475,18 +1475,21 @@ Syncing:
         {
             byte[] magicNumber = new byte[] { 0x49, 0x4E, 0x49, 0x54, 0x46, 0x52, 0x41, 0x4D, 0x45 }; // INITFRAME
 
-            using (MemoryStream ms = new MemoryStream())
-            {
-                // send INITFRAME magic, then 3 bytes of netcode protocol version
-                ms.Write(magicNumber, 0, magicNumber.Length);
-                ms.WriteByte(majorVersion);
-                ms.WriteByte(minorVersion);
-                ms.WriteByte(patchVersion);
-                // send scene var name in ASCII, append frame terminator
-                byte[] sceneData = Encoding.UTF8.GetBytes(sceneVarName + "|");
-                ms.Write(sceneData, 0, sceneData.Length);
-                return ms.ToArray();
-            }
+            List<byte> data = new List<byte>();
+
+            // Add INITFRAME magic
+            data.AddRange(magicNumber);
+
+            // Add 3 bytes of netcode protocol version
+            data.Add(majorVersion);
+            data.Add(minorVersion);
+            data.Add(patchVersion);
+
+            // Add scene var name in UTF-8, append frame terminator
+            byte[] sceneData = Encoding.UTF8.GetBytes(sceneVarName + "|");
+            data.AddRange(sceneData);
+
+            return data.ToArray();
         }
 
         protected void SendInitialRequestFrame(byte[] requestData)
@@ -1557,7 +1560,7 @@ Syncing:
                     // XXX irrelevant if Blocking is false
                     client.SendTimeout = 5000;    // 5 seconds timeout for send operations
                     //client.ReceiveTimeout = 5000; // 5 seconds timeout for receive operations
-                    client.ReceiveTimeout = 5; // 2ms timeout
+                    client.ReceiveTimeout = 5000;
                 }
 
                 client.Connect(ipEndPoint);

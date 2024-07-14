@@ -288,7 +288,7 @@ func getRoomStatus(filePath, roomLabel string) (string, error) {
 		return "", err
 	}
 
-	return fmt.Sprintf("%s:\n%s", roomLabel, playerDetails), nil
+	return fmt.Sprintf("%s:\n%s\n", roomLabel, playerDetails), nil
 }
 
 // Fetch username from mapping file based on IP
@@ -330,21 +330,58 @@ func getPlayerDetails(state, timestampStr string) (string, error) {
 
 	playerInfo := strings.Split(state, ",")
 	playerDetails := ""
+	sceneNames := make(map[string]int)
+	lastScene := ""
 	for _, info := range playerInfo {
 		playerParts := strings.Split(info, ":")
-		if len(playerParts) == 3 {
+		if len(playerParts) < 3 || len(playerParts) > 4 {
+		    continue // Skip invalid entries
+		}
+		// get username from mapping file based on IP
+		// we want to avoid showing user IPs
+		username, err := getUsernameFromIP(playerParts[0])
+		if err != nil {
+			username = "unknown"
+		}
+		characterName := playerParts[2]
+		sceneName := ""
+		if len(playerParts) == 4 {
+		    sceneName = playerParts[3]
+		    sceneNames[sceneName]++
+		    lastScene = sceneName
+		}
+		if "@SPECTATOR@" == characterName {
+			playerDetails += fmt.Sprintf("%s is SPECTATOR.\n", username)
+		} else {
+			playerDetails += fmt.Sprintf("%s controls %s.\n", username, characterName)
+		}
+		if sceneName != "" {
+		    playerDetails += fmt.Sprintf("%s is on %s", username, sceneName)
+		}
+	}
+	// check if all players are on same scene
+	if len(sceneNames) == 1 && sceneNames[lastScene] == len(playerInfo) {
+		// they are - run the same loop again but print scene only at the end (TODO optimize this)
+		playerDetails = ""
+		for _, info := range playerInfo {
+			playerParts := strings.Split(info, ":")
+			if len(playerParts) < 3 || len(playerParts) > 4 {
+			    continue // Skip invalid entries
+			}
 			// get username from mapping file based on IP
 			// we want to avoid showing user IPs
 			username, err := getUsernameFromIP(playerParts[0])
 			if err != nil {
 				username = "unknown"
 			}
-			if "@SPECTATOR@" == playerParts[2] {
+			characterName := playerParts[2]
+			if "@SPECTATOR@" == characterName {
 				playerDetails += fmt.Sprintf("%s is SPECTATOR.\n", username)
 			} else {
-				playerDetails += fmt.Sprintf("%s controls %s.\n", username, playerParts[2])
+				playerDetails += fmt.Sprintf("%s controls %s.\n", username, characterName)
 			}
 		}
+		playerDetails += fmt.Sprintf("Players running scene: %s\n", lastScene)
 	}
 
 	return fmt.Sprintf("%s:\n%s", timestampStr, playerDetails), nil

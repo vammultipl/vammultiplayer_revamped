@@ -10,6 +10,11 @@ import sys
 import time
 import logging
 
+MAGIC_NUMBER = b'INITFRAME'
+SERVER_MAJOR_VERSION = 1  # Server version of data protocol
+SERVER_MINOR_VERSION = 0
+SERVER_PATCH_VERSION = 0
+
 class VAMMultiplayerServer:
     def __init__(self, host, port):
         self.host = host
@@ -22,6 +27,7 @@ class VAMMultiplayerServer:
         self.players = {}
         self.users = {}
         self.usersLastClothesUpdate = {}
+        self.usersScenes = {}
         self.player_to_user = {} # not including spectators
         self.lock = threading.Lock()
 
@@ -62,7 +68,7 @@ class VAMMultiplayerServer:
                         break
                     continue
                 elif terminator_count >= 1:
-                    # we got multiple messages at once, first one is potentially a partial message
+                    # we got one or more messages, first one is potentially a partial message
                     messages = request.split(b"|")
                     messages[0] = saved_partial_message + messages[0]
                     saved_partial_message = b'' # stored partial message was incorporated - clear it
@@ -93,9 +99,44 @@ class VAMMultiplayerServer:
             logging.error(f"Allowlist file {filename} not found.")
         return allowlist
 
+    def parse_initial_frame(data):
+        # Extract version information
+        major, minor, patch = struct.unpack('BBB', data[len(MAGIC_NUMBER):len(MAGIC_NUMBER)+3])
+
+        # Check version compatibility
+        if (major, minor, patch) != (SERVER_MAJOR_VERSION, SERVER_MINOR_VERSION, SERVER_PATCH_VERSION):
+            return None, f"Version mismatch. Please update your client."
+
+        # Extract scene name
+        scene_data = data[len(MAGIC_NUMBER)+3:]
+        try:
+            scene_name = scene_data.decode('utf-8').split('|')[0]
+        except UnicodeDecodeError:
+            logging.error(f"Invalid scene name encoding")
+            return None, "Invalid scene name encoding"
+
+        return scene_name, None
+
     def handle_request(self, client, request, address):
-        parts = request.split(b";")
+        # key for hashmaps involving user
         key = f"{address[0]}:{address[1]}"
+
+        # Check if it is initial frame
+        if len(request) >= len(MAGIC_NUMBER) + 3: # 3 bytes for version
+            # Check magic number
+            if request[:len(MAGIC_NUMBER)] == MAGIC_NUMBER:
+                # Handle initial frame and return
+                scene_name, err_str = parse_initial_frame(request)
+                if err_str:
+                    client.sendall(b"{err_str}|")
+                else:
+                    client.sendall(b"client_version: latest|")
+                # Remember scene name loaded by user
+                if scene_name:
+                    self.usersScenes[key] = scene_name
+                return
+
+        parts = request.split(b";")
         if len(parts) > 2: #assume more than one joint status is sent
 #            self.handle_new_player(client, parts[0])
 #        else:
@@ -206,13 +247,23 @@ class VAMMultiplayerServer:
                 del self.users[key]
                 if key in self.usersLastClothesUpdate:
                     del self.usersLastClothesUpdate[key]
+                if key in self.usersScenes:
+                    del self.usersScenes[key]
                 self.on_user_change()
 
     def on_user_change(self):
         filename = f'current_players_port{self.port}.txt'
+        timestamp = int(time.time())
+
+        def format_user_data(ip_port, player_name):
+            base_info = f"{ip_port}:{player_name.decode()}"
+            scene_name = self.usersScenes.get(ip_port)
+            return f"{base_info}:{scene_name}" if scene_name else base_info
+
+        user_data = [format_user_data(ip_port, player_name) for ip_port, player_name in self.users.items()]
+        state = ",".join(user_data)
+
         with open(filename, 'a') as f:
-            timestamp = int(time.time())
-            state = ",".join(f"{ip_port}:{player_name.decode()}" for ip_port, player_name in self.users.items())
             f.write(f"{timestamp};{state}\n")
 
 def main():

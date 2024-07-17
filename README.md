@@ -97,7 +97,7 @@ If you can't connect to the server, it might be due to:
 - IPs not in the allowlist managed by the Discord bot are immediately disconnected.
 
 ## Known Issues
-- "Player connected/disconnected" messages in plugin window are wonky and not always correct. Discord bot statuses are always correct, updated every 20s.
+- Cannot change clothing of another look if it is being controlled by a player
 
 ## TL;DR I came from Metachat - how do I use this?
 MetaChat had web registration, lobbies with visible scenes, an in-game menu to synchronize other people's looks, and also a chat. This has none of that.

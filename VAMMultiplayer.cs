@@ -88,14 +88,15 @@ namespace vamrobotics
         private List<string> onlinePlayers;
         private List<Player> players;
         private string lastSentClothesUpdate = ""; //copy of last sent clothes update for current player
+        private bool firstResponseAfterConnecting = true;
 
-            private static string[] shortTargetNames = new string[] {
+        private static string[] shortTargetNames = new string[] {
         "c", "Hc", "pc", "cc", "hc", "rh", "lh", "rf", "lf", "nc", "et", "rn", "ln",
         "tc", "pb", "pm", "pt", "re", "le", "rk", "lk", "Rt", "Lt", "ac", "a2",
         "rt", "lt", "ra", "la", "rs", "ls"
-            };
+        };
 
-            private static string[] longTargetNames = new string[] {
+        private static string[] longTargetNames = new string[] {
                 "control", "hipControl", "pelvisControl", "chestControl", "headControl",
                 "rHandControl", "lHandControl", "rFootControl", "lFootControl", "neckControl",
                 "eyeTargetControl", "rNippleControl", "lNippleControl", "testesControl",
@@ -103,7 +104,7 @@ namespace vamrobotics
                 "lElbowControl", "rKneeControl", "lKneeControl", "rToeControl", "lToeControl",
                 "abdomenControl", "abdomen2Control", "rThighControl", "lThighControl",
                 "rArmControl", "lArmControl", "rShoulderControl", "lShoulderControl"
-            };
+        };
 
         public override void Init()
         {
@@ -501,6 +502,7 @@ Syncing:
                         {
                             SuperController.LogError("SocketException caught: " + ex.Message);
                             diagnosticsTextField.text += "sendfailed Error: server disconnected. Try to re-register via Discord bot. Or did you try controlling an already controlled look?\n";
+                            SuperController.AlertUser("Error: server disconnected. Try to re-register via Discord bot. Or did you try controlling an already controlled look?", null);
                             client.Close();
                             client = null;
                             ClearState();
@@ -547,6 +549,7 @@ Syncing:
                                         {
                                             SuperController.LogError("receive socket error! server disconnected");
                                             diagnosticsTextField.text += "receivefail Error: server disconnected. Try to re-register via Discord bot. Or did you try controlling an already controlled look?\n";
+                                            SuperController.AlertUser("Error: server disconnected. Try to re-register via Discord bot. Or did you try controlling an already controlled look?", null);
                                             client.Close();
                                             client = null;
                                             ClearState();
@@ -556,6 +559,7 @@ Syncing:
                                 {
                                         SuperController.LogError("receive socket error! disconnected");
                                         diagnosticsTextField.text += "receivefail Error: server disconnected. Try to re-register via Discord bot. Or did you try controlling an already controlled look?\n";
+                                        SuperController.AlertUser("Error: server disconnected. Try to re-register via Discord bot. Or did you try controlling an already controlled look?", null);
                                         client.Close();
                                         client = null;
                                         ClearState();
@@ -589,6 +593,7 @@ Syncing:
                     SuperController.LogError("Receive Exception SocketException caught: " + ex.Message);
                     diagnosticsTextField.text += "\n" + "socketerrorcode on receive="  + ex.SocketErrorCode + "\n";
                     diagnosticsTextField.text += "receivefail Error: server disconnected. Try to re-register via Discord bot. Or did you try controlling an already controlled look?\n";
+                    SuperController.AlertUser("Error: server disconnected. Try to re-register via Discord bot. Or did you try controlling an already controlled look?", null);
                     client.Close();
                     client = null;
                     ClearState();
@@ -602,6 +607,7 @@ Syncing:
             {
                 SuperController.LogError("Receive error - exception: " + ex.Message);
                 diagnosticsTextField.text += "receivefail general Error: server disconnected. Try to re-register via Discord bot. Or did you try controlling an already controlled look?\n";
+                SuperController.AlertUser("Error: server disconnected. Try to re-register via Discord bot. Or did you try controlling an already controlled look?", null);
                 client.Close();
                 client = null;
                 ClearState();
@@ -937,6 +943,18 @@ Syncing:
                     }
                 }
                 bool playerCountChanged = false;
+                // Show alert only if someone joins/disconnects during play
+                bool shouldShowAlert;
+                if (firstResponseAfterConnecting)
+                {
+                    shouldShowAlert = false;
+                    firstResponseAfterConnecting = false;
+                }
+                else
+                {
+                    shouldShowAlert = true;
+                }
+
                 // Check if anyone joined since last response
                 foreach (string player in latestOnlinePlayers)
                 {
@@ -944,6 +962,10 @@ Syncing:
                     {
                         playerCountChanged = true;
                         diagnosticsTextField.text += player + " joined." + "\n";
+                        if (shouldShowAlert)
+                        {
+                            SuperController.AlertUser(player + " joined.\nEnable their atom if not enabled already!", null);
+                        }
                     }
                 }
                 // Check if anyone disconnected since last response
@@ -953,6 +975,10 @@ Syncing:
                     {
                         playerCountChanged = true;
                         diagnosticsTextField.text += player + " disconnected." + "\n";
+                        if (shouldShowAlert)
+                        {
+                            SuperController.AlertUser(player + " disconnected.", null);
+                        }
                     }
                 }
                 if (playerCountChanged || playerCountTextField.text == "Player count: ")
@@ -1365,6 +1391,7 @@ Syncing:
             requestGlobal.Length = 0;
             responseGlobal = "";
             lastSentClothesUpdate = "";
+            firstResponseAfterConnecting = true;
         }
         protected void DisconnectFromServerCallback()
         {

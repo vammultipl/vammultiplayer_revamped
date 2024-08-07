@@ -16,6 +16,11 @@ SERVER_MAJOR_VERSION = 1  # Server version of data protocol
 SERVER_MINOR_VERSION = 0
 SERVER_PATCH_VERSION = 0
 
+PLAYER_LIMIT = 8 # Max number of controlled players at a time (does not include spectators)
+USERS_LIMIT = 10 # Max users connected (controlled players and potential spectators)
+
+SPECTATOR_PLAYER_NAME = b"@SPECTATOR@" # special player name for spectator
+
 class VAMMultiplayerServer:
     def __init__(self, host, port):
         self.host = host
@@ -25,16 +30,16 @@ class VAMMultiplayerServer:
         self.sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
         self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self.sock.bind((self.host, self.port))
-        self.players = {}
-        self.users = {}
+        self.players = {} # all controlled players and their current targets (node positions)
+        self.users = {} # all connected users - keys are IP:PORT and values are controlled player names
         self.usersLastClothesUpdate = {}
-        self.usersScenes = {}
+        self.usersScenes = {} # scene names that users are using (key is IP:PORT, value is scene name)
         self.player_to_user = {} # not including spectators
-        self.lock = threading.Lock()
+        self.lock = threading.RLock() # recursive lock
 
     def listen(self):
         self.on_user_change()
-        self.sock.listen(8)  # Only expecting up to eight users.
+        self.sock.listen(USERS_LIMIT)  # Limit number of users connected
         while True:
             client, address = self.sock.accept()
             logging.info(f"New connection from {address[0]}:{address[1]}")
@@ -119,7 +124,7 @@ class VAMMultiplayerServer:
         return scene_name, None
 
     def handle_request(self, client, request, address):
-        # key for hashmaps involving user
+        # key for hashmaps involving user (IP:port)
         key = f"{address[0]}:{address[1]}"
 
         # Check if it is initial frame
@@ -131,77 +136,113 @@ class VAMMultiplayerServer:
                 if err_str:
                     client.sendall(b"{err_str}|")
                 else:
-                    client.sendall(b"client_version: latest|")
+                    # Check if other users have different scenes
+                    with self.lock:
+                        other_scenes = set(self.usersScenes.values()) - {scene_name}
+                    if other_scenes:
+                        warning = "WARNING: You are using a different scene than others on the server."
+                        scene_list = f"Others are using: {', '.join(other_scenes)}."
+                        client.sendall(f"{warning}\n{scene_list}\nclient_version: OK|".encode())
+                    else:
+                        client.sendall(b"client_version: OK|")
                 # Remember scene name loaded by user
                 if scene_name:
-                    self.usersScenes[key] = scene_name
+                    with self.lock:
+                        self.usersScenes[key] = scene_name
                 return
 
         parts = request.split(b";")
-        if len(parts) > 2: #assume more than one joint status is sent
-#            self.handle_new_player(client, parts[0])
-#        else:
+
+        if len(parts) > 2: # assume more than one joint status is sent
+            # joints were sent - it is not spectator but controlled player
             player_name = parts[0]
             updates = parts[1:]
-            if player_name in self.player_to_user:
-                if self.player_to_user[player_name] != key:
-                    logging.info(f"Disconnected user {key} for trying to control already controlled player {player_name.decode()}")
-                    client.close()
-                    self.handle_disconnect(client, address)
-                    return
 
+            with self.lock:
+                same_user_same_player = False
+                # 1) check if player is trying to control a player already controlled by another user
+                if player_name in self.player_to_user:
+                    if self.player_to_user[player_name] != key:
+                        logging.info(f"Disconnected user {key} for trying to control already controlled player {player_name.decode()}")
+                        self.handle_disconnect(client, address)
+                        client.close()
+                        return
+                    else:
+                        same_user_same_player = True # most common case - this user is controlling same player as in previous request
+
+                if not same_user_same_player:
+                    # user or player change
+                    is_new_user = False
+                    user_was_spectator = False
+                    if key in self.users:
+                        if self.users[key] == SPECTATOR_PLAYER_NAME:
+                            user_was_spectator = True
+                    else:
+                        is_new_user = True
+
+                    # 2) if new user or user was spectator before - check if new player exceeds player limit
+                    if is_new_user or user_was_spectator:
+                        if len(self.players) >= PLAYER_LIMIT:
+                            logging.error(f"Error: exceeding limit of {PLAYER_LIMIT} players (players:{len(self.players)}) when trying to add Player with name: {player_name.decode()}")
+                            logging.error(f"Disconnected user {key} for exceeding player limit")
+                            self.handle_disconnect(client, address)
+                            client.close()
+                            return
+
+                    if not is_new_user:
+                        # old user that has switched controlled player or was spectator before
+                        old_playername = self.users[key]
+                        # mark previous player controlled by user as free to use
+                        if old_playername in self.player_to_user:
+                            del self.player_to_user[old_playername]
+                        if old_playername in self.players:
+                            del self.players[old_playername]
+                        # log if a player was released
+                        if old_playername != SPECTATOR_PLAYER_NAME:
+                            logging.info(f"User {key} stopped controlling {old_playername.decode()}")
+                        else:
+                            logging.info(f"User {key} is no longer SPECTATOR")
+
+                    # set new player for user
+                    self.users[key] = player_name
+                    self.player_to_user[player_name] = key
+                    self.players[player_name] = {}
+                    logging.info(f"{key} now controls player {player_name.decode()}")
+                    self.on_user_change()
+
+            # parse updates from client and send response to client
             self.handle_batch_update(key, client, False, player_name, updates)
 
-            # Log IP and player_name changes
-            with self.lock:
-                if key not in self.users or self.users[key] != player_name:
-                    if key in self.users:
-                        old_playername = self.users[key]
-                        if old_playername in self.player_to_user:
-                            # Mark previous player controlled by user as free to use
-                            del self.player_to_user[old_playername]
-                    self.users[key] = player_name
-                    logging.info(f"{key} now controls player {player_name.decode()}")
-                    self.player_to_user[player_name] = key
-                    self.on_user_change()
         else:
             if request == b"S":
                 # spectator mode
-                self.handle_batch_update(key, client, True, None, None)
-                # Log IP for spectator
                 with self.lock:
-                    player_name = b"@SPECTATOR@" # can be multiple spectators
+                    player_name = SPECTATOR_PLAYER_NAME # can be multiple spectators
+                    # if user not exists or exists but was controlling player before
                     if key not in self.users or self.users[key] != player_name:
                         if key in self.users:
+                            # user was controlling player before - mark previous player as free to use
                             old_playername = self.users[key]
+                            # mark previous player controlled by user as free to use
                             if old_playername in self.player_to_user:
-                                # Mark previous player controlled by user as free to use
                                 del self.player_to_user[old_playername]
+                            if old_playername in self.players:
+                                del self.players[old_playername]
+                            # log that a player was released
+                            logging.info(f"User {key} stopped controlling {old_playername.decode()}")
+
                         self.users[key] = player_name
                         logging.info(f"{key} is now a SPECTATOR")
                         self.on_user_change()
+
+                # send response to client
+                self.handle_batch_update(key, client, True, None, None)
             else:
                 logging.error(f"Error: got malformed input: {request.decode()}")
-
-#    def handle_new_player(self, client, player_name):
-#        with self.lock:
-#            if player_name not in self.players:
-#                self.players[player_name] = {}
-#                print(f"Adding new player: {player_name.decode()}")
-#                client.send(player_name + b" added to server.")
-#            else:
-#                client.send(player_name + b" already added to server.")
 
     def handle_batch_update(self, user, client, is_spectator, player_name, updates):
         with self.lock:
             if not is_spectator:
-                # Ensure player exists
-                if player_name not in self.players:
-                    if len(self.players) > 5:
-                        logging.error(f"Error: already more than 5 players when trying to add Player with name: {player_name.decode()}")
-                        return
-                    logging.info(f"Adding new player: {player_name.decode()}")
-                    self.players[player_name] = {}
                 # Update positions and rotations for the player (also CLOTHES, which is a separate optional target)
                 for update in updates:
                     data = update.split(b",")

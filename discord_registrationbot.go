@@ -240,7 +240,7 @@ func getCurrentGameStatus() (string, error) {
 		return "", err
 	}
 
-	return fmt.Sprintf("%s\n%s\n", statusRoom1, statusRoom2), nil
+	return fmt.Sprintf("%s\n%s\n\n", statusRoom1, statusRoom2), nil
 }
 
 func getRoomStatus(filePath, roomLabel string) (string, error) {
@@ -288,7 +288,7 @@ func getRoomStatus(filePath, roomLabel string) (string, error) {
 		return "", err
 	}
 
-	return fmt.Sprintf("%s:\n%s\n", roomLabel, playerDetails), nil
+	return fmt.Sprintf("%s:\n%s", roomLabel, playerDetails), nil
 }
 
 // Fetch username from mapping file based on IP
@@ -356,7 +356,7 @@ func getPlayerDetails(state, timestampStr string) (string, error) {
 			playerDetails += fmt.Sprintf("%s controls %s.\n", username, characterName)
 		}
 		if sceneName != "" {
-		    playerDetails += fmt.Sprintf("%s is on %s", username, sceneName)
+		    playerDetails += fmt.Sprintf("%s is on %s\n", username, sceneName)
 		}
 	}
 	// check if all players are on same scene

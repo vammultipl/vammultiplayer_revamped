@@ -174,6 +174,14 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate, allowedChan
 		s.ChannelMessageSend(m.ChannelID, gameStatus)
 	} else if strings.HasPrefix(m.Content, "/monitor") {
 		handleMonitorCommand(s, m)
+		// print state as well
+		gameStatus, err := getCurrentGameStatus()
+		if err != nil {
+			log.Println("Error reading game status: ", err)
+			s.ChannelMessageSend(m.ChannelID, "Error retrieving game status.")
+			return
+		}
+		s.ChannelMessageSend(m.ChannelID, gameStatus)
 	} else {
 		// Respond with detailed usage info for any other message
 		url := "https://www.google.com/search?q=google+what+is+my+ip"

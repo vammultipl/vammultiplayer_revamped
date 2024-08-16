@@ -37,12 +37,6 @@ class VAMMultiplayerServer:
         while True:
             client, address = self.sock.accept()
             logger.info(f"New connection from {address[0]}:{address[1]}")
-            # Load IP allowlist fresh
-            allowlist = self.load_allowlist('allowlist.txt')
-            if address[0] not in allowlist:
-                logger.info(f"Connection from {address[0]}:{address[1]} rejected: IP not in allowlist")
-                client.close()
-                continue
             client.settimeout(90)
             threading.Thread(target=self.client_connection, args=(client, address)).start()
 

@@ -197,7 +197,7 @@ class VAMMultiplayerServer:
                 self.on_user_change()
 
     def on_user_change(self):
-        users = ",".join(f"{ip_port}:{player_name.decode()}" for ip_port, player_name in self.users.items())
+        users = ",".join(f"{{\"{player_name.decode()}\":\"{ip_port}\"}}" for ip_port, player_name in self.users.items())
         user_logger.info('{"users": [' + users + ']}')
 
 def main():

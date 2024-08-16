@@ -1,0 +1,7 @@
+FROM python:3-slim
+RUN useradd -ms /bin/bash vamserver
+EXPOSE 8888/tcp
+ADD --chown=vamserver ./deploy/* /home/vamserver
+USER vamserver
+WORKDIR /home/vamserver
+ENTRYPOINT [ "python3", "./VAMMultiplayerTCPServer.py"]

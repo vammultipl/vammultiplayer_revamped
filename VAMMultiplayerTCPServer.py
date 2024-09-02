@@ -278,19 +278,25 @@ class VAMMultiplayerServer:
         # Log disconnect details
         key = f"{address[0]}:{address[1]}"
         logging.info(f"Client disconnected from {key}")
+
         with self.lock:
-            if key in self.users:
-                logging.info(f"Client {key} stopped controlling {self.users[key].decode()}")
-                player_name = self.users[key]
-                if player_name in self.players:
-                    del self.players[player_name]
-                if player_name in self.player_to_user:
-                    del self.player_to_user[player_name]
-                del self.users[key]
-                if key in self.usersLastClothesUpdate:
-                    del self.usersLastClothesUpdate[key]
-                if key in self.usersScenes:
-                    del self.usersScenes[key]
+            # Get player name if it exists
+            player_name = self.users.get(key)
+
+            if player_name:
+                logging.info(f"Client {key} stopped controlling {player_name.decode()}")
+
+                # Clean up player-related dictionaries
+                self.players.pop(player_name, None)
+                self.player_to_user.pop(player_name, None)
+
+            # Clean up user-related dictionaries
+            self.users.pop(key, None)
+            self.usersLastClothesUpdate.pop(key, None)
+            self.usersScenes.pop(key, None)
+
+            # Call on_user_change only if the key was in self.users
+            if player_name:
                 self.on_user_change()
 
     def on_user_change(self):

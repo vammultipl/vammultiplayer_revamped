@@ -12,21 +12,13 @@ import time
 import logging
 from VamMultiplayerTCP import VAMMultiplayerTCP
 
-class VAMMultiplayerServer(VAMMultiplayerTCP):
+class VAMMultiplayerServerless(VAMMultiplayerTCP):
     def __init__(self, host, port):
         super().__init__(host, port)
+        self.stateLogger = logging.getLogger('ServerState')
 
     def load_allowlist(self, filename):
-        allowlist = set()
-        try:
-            with open(filename, 'r') as file:
-                for line in file:
-                    parts = line.strip().split()
-                    if len(parts) == 2:
-                        allowlist.add(parts[0])
-        except FileNotFoundError:
-            logging.error(f"Allowlist file {filename} not found.")
-        return allowlist
+        return None
 
 
     def on_user_change(self):
@@ -34,15 +26,18 @@ class VAMMultiplayerServer(VAMMultiplayerTCP):
         timestamp = int(time.time())
 
         def format_user_data(ip_port, player_name):
-            base_info = f"{ip_port}:{player_name.decode()}"
             scene_name = self.usersScenes.get(ip_port)
-            return f"{base_info}:{scene_name}" if scene_name else base_info
+            if not scene_name:
+                scene_name = "None"
+            base_info = f"{{\"IP\":\"{ip_port}\",\"playerName\":\"{player_name.decode()}\",\"scene\": {scene_name}}}"
+            return base_info
 
         user_data = [format_user_data(ip_port, player_name) for ip_port, player_name in self.users.items()]
-        state = ",".join(user_data)
-
-        with open(filename, 'a') as f:
-            f.write(f"{timestamp};{state}\n")
+        if len(user_data) == 0:
+            state = "Empty Server"
+        else:
+            state = ",".join(user_data)
+        self.stateLogger.info("USERSTATECHANGE - " + state)
 
 def main():
     host = "0.0.0.0"
@@ -61,7 +56,7 @@ def main():
     logging.info("VAM Multiplayer Server running:")
     logging.info(f"IP: {host}")
     logging.info(f"Port: {port}")
-    VAMMultiplayerServer(host, port).listen()
+    VAMMultiplayerServerless(host, port).listen()
 
 if __name__ == "__main__":
     main()

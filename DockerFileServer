@@ -1,0 +1,8 @@
+FROM python:3-slim
+RUN useradd -ms /bin/bash vamserver
+EXPOSE 8888/tcp
+ADD --chown=vamserver ./VAMMultiplayerTCPServer.py /home/vamserver
+ADD --chown=vamserver ./VamMultiplayerTCP.py /home/vamserver
+USER vamserver
+WORKDIR /home/vamserver
+ENTRYPOINT [ "python3", "./VAMMultiplayerTCPServer.py"]

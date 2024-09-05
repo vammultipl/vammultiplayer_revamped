@@ -29,6 +29,8 @@ var (
 	monitorMaxHours int = 16 // monitor for max 16 hours
 )
 
+const alwaysMonitorFileName = "always_monitor_channel.txt"
+
 func main() {
 	// Read the bot token from a file
 	tokenFile, err := os.Open("token.txt")
@@ -81,6 +83,9 @@ func main() {
 	go startCleanupTimer()
 	// Goroutine to poll for player state changes and update status
 	go startPlayerStateMonitor(dg)
+
+	// Initialize the always monitor channel functionality
+	alwaysMonitorChannel()
 
 	log.Println("Bot is now running. Press CTRL+C to exit.")
 	// Wait here until CTRL+C or other term signal is received.
@@ -192,6 +197,30 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate, allowedChan
 		    "Please use one of the above commands.\n", url)
 		s.ChannelMessageSend(m.ChannelID, text)
 	}
+}
+
+// alwaysMonitorChannel checks if always_monitor_channel.txt file is present, and if so,
+// reads the channel ID from the file and sets its expiry time to 999999 hours in the future.
+func alwaysMonitorChannel() {
+	if _, err := os.Stat(alwaysMonitorFileName); os.IsNotExist(err) {
+		// File does not exist
+		return
+	}
+
+	data, err := ioutil.ReadFile(alwaysMonitorFileName)
+	if err != nil {
+		log.Printf("Failed to read %s: %v", alwaysMonitorFileName, err)
+		return
+	}
+
+	channelID := strings.TrimSpace(string(data))
+	expiryTime := time.Now().Add(999999 * time.Hour)
+
+	mu.Lock()
+	monitoredChannels[channelID] = expiryTime
+	mu.Unlock()
+
+	log.Printf("Channel %s will be monitored for 999999 hours.", channelID)
 }
 
 // handleMonitorCommand handles the /monitor <hours> command

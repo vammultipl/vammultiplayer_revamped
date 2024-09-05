@@ -18,17 +18,17 @@ import (
 )
 
 var (
-	token          string
-	allowlistFile       = "allowlist.txt" // user IP allowlist
-	usernamesFile       = "usernames_ips.txt" // mapping of IPs into usernames
+	token	       string
+	allowlistFile	    = "allowlist.txt" // user IP allowlist
+	usernamesFile	    = "usernames_ips.txt" // mapping of IPs into usernames
 	alwaysMonitorFileName = "always_monitor_channel.txt" // channel to always monitor (optional)
 	guildIDFileName = "guild_id.txt" // ID of the Discord server (used to fetch user nickname when they register)
 	guildID = "" // retrieved from guild_id.txt
 	expirationTime = 7 * 24 * 1 * time.Hour // 1 week expiration
-	allowlistMutex          sync.Mutex // Mutex to protect access to the allowlist and usernames file
+	allowlistMutex		sync.Mutex // Mutex to protect access to the allowlist and usernames file
 	prevPlayerStatus string = ""
 	monitoredChannels = make(map[string]time.Time) // monitoring enabled channels by /monitor command
-	mu               sync.Mutex // mutex protecting monitoredChannels
+	mu		 sync.Mutex // mutex protecting monitoredChannels
 	monitorMaxHours int = 16 // monitor for max 16 hours
 )
 
@@ -42,16 +42,16 @@ func main() {
 	}
 	defer tokenFile.Close()
 
-        // Read the channel name from the file
-        channelName, err := readChannelNameFromFile("bot_discord_channel_name.txt")
-        if err != nil {
-            log.Println("Error reading channel name:", err)
-            log.Println("Quitting..")
-            return
-        }
+	// Read the channel name from the file
+	channelName, err := readChannelNameFromFile("bot_discord_channel_name.txt")
+	if err != nil {
+		log.Println("Error reading channel name:", err)
+		log.Println("Quitting..")
+		return
+	}
 
 	// Read the guild ID
-        readGuildID()
+	readGuildID()
 
 	scanner := bufio.NewScanner(tokenFile)
 	if scanner.Scan() {
@@ -71,9 +71,9 @@ func main() {
 	}
 
 	// Register the messageCreate func as a callback for MessageCreate events.
-        dg.AddHandler(func(s *discordgo.Session, m *discordgo.MessageCreate) {
-            messageCreate(s, m, channelName)
-        })
+	dg.AddHandler(func(s *discordgo.Session, m *discordgo.MessageCreate) {
+		messageCreate(s, m, channelName)
+	})
 	// In this example, we only care about receiving message events.
 	dg.Identify.Intents = discordgo.IntentsGuildMessages | discordgo.IntentsDirectMessages | discordgo.IntentsGuildMembers
 
@@ -103,40 +103,40 @@ func main() {
 }
 
 func readGuildID() {
-        // Check if the guild ID file exists
-        if _, err := os.Stat(guildIDFileName); os.IsNotExist(err) {
-                // File does not exist, set guildID to an empty string
-                guildID = ""
-                return
-        }
+	// Check if the guild ID file exists
+	if _, err := os.Stat(guildIDFileName); os.IsNotExist(err) {
+		// File does not exist, set guildID to an empty string
+		guildID = ""
+		return
+	}
 
-        // Read the contents of the guild ID file
-        data, err := ioutil.ReadFile(guildIDFileName)
-        if err != nil {
-                log.Printf("Failed to read %s: %v", guildIDFileName, err)
-                guildID = "" // Set to empty string on error
-                return
-        }
+	// Read the contents of the guild ID file
+	data, err := ioutil.ReadFile(guildIDFileName)
+	if err != nil {
+		log.Printf("Failed to read %s: %v", guildIDFileName, err)
+		guildID = "" // Set to empty string on error
+		return
+	}
 
-        // Trim whitespace from the read data and set guildID
-        guildID = strings.TrimSpace(string(data))
+	// Trim whitespace from the read data and set guildID
+	guildID = strings.TrimSpace(string(data))
 }
 
 func readChannelNameFromFile(filename string) (string, error) {
-    content, err := ioutil.ReadFile(filename)
-    if err != nil {
-        return "", err
-    }
+	content, err := ioutil.ReadFile(filename)
+	if err != nil {
+		return "", err
+	}
 
-    lines := strings.Split(string(content), "\n")
-    for _, line := range lines {
-        trimmedLine := strings.TrimSpace(line)
-        if trimmedLine != "" && !strings.HasPrefix(trimmedLine, "#") {
-            return trimmedLine, nil
-        }
-    }
+	lines := strings.Split(string(content), "\n")
+	for _, line := range lines {
+		trimmedLine := strings.TrimSpace(line)
+		if trimmedLine != "" && !strings.HasPrefix(trimmedLine, "#") {
+			return trimmedLine, nil
+		}
+	}
 
-    return "", fmt.Errorf("no valid channel name found in the file")
+	return "", fmt.Errorf("no valid channel name found in the file")
 }
 
 func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate, allowedChannelName string) {
@@ -152,10 +152,10 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate, allowedChan
 		return
 	}
 
-        // Only respond to messages in the allowed channel or DMs
-        if channel.Type != discordgo.ChannelTypeDM && channel.Name != allowedChannelName {
-            return
-        }
+	// Only respond to messages in the allowed channel or DMs
+	if channel.Type != discordgo.ChannelTypeDM && channel.Name != allowedChannelName {
+		return
+	}
 
 	log.Println("Got message: ", m.Content)
 
@@ -163,11 +163,11 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate, allowedChan
 	if strings.HasPrefix(m.Content, "/register") {
 		if channel.Type != discordgo.ChannelTypeDM {
 			log.Println("/register command sent not in DM - deleting msg and warning user")
-		        // Delete the user's message
-		        err := s.ChannelMessageDelete(m.ChannelID, m.ID)
-		        if err != nil {
-		            log.Println("Error deleting message:", err)
-		        }
+			// Delete the user's message
+			err := s.ChannelMessageDelete(m.ChannelID, m.ID)
+			if err != nil {
+				log.Println("Error deleting message:", err)
+			}
 			s.ChannelMessageSend(m.ChannelID, "Send /register commands via DM only.")
 			return
 		}
@@ -189,7 +189,7 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate, allowedChan
 						// Use the nickname if available, otherwise fallback to the username
 						username = member.Nick
 						if username == "" {
-						    username = m.Author.Username
+							username = m.Author.Username
 						}
 					}
 				} else {
@@ -415,7 +415,7 @@ func getPlayerDetails(state, timestampStr string) (string, error) {
 	for _, info := range playerInfo {
 		playerParts := strings.Split(info, ":")
 		if len(playerParts) < 3 || len(playerParts) > 4 {
-		    continue // Skip invalid entries
+			continue // Skip invalid entries
 		}
 		// get username from mapping file based on IP
 		// we want to avoid showing user IPs
@@ -426,9 +426,9 @@ func getPlayerDetails(state, timestampStr string) (string, error) {
 		characterName := playerParts[2]
 		sceneName := ""
 		if len(playerParts) == 4 {
-		    sceneName = playerParts[3]
-		    sceneNames[sceneName]++
-		    lastScene = sceneName
+			sceneName = playerParts[3]
+			sceneNames[sceneName]++
+			lastScene = sceneName
 		}
 		if "@SPECTATOR@" == characterName {
 			playerDetails += fmt.Sprintf("%s is SPECTATOR.\n", username)
@@ -436,7 +436,7 @@ func getPlayerDetails(state, timestampStr string) (string, error) {
 			playerDetails += fmt.Sprintf("%s controls %s.\n", username, characterName)
 		}
 		if sceneName != "" {
-		    playerDetails += fmt.Sprintf("%s is on %s\n", username, sceneName)
+			playerDetails += fmt.Sprintf("%s is on %s\n", username, sceneName)
 		}
 	}
 	// check if all players are on same scene
@@ -446,7 +446,7 @@ func getPlayerDetails(state, timestampStr string) (string, error) {
 		for _, info := range playerInfo {
 			playerParts := strings.Split(info, ":")
 			if len(playerParts) < 3 || len(playerParts) > 4 {
-			    continue // Skip invalid entries
+				continue // Skip invalid entries
 			}
 			// get username from mapping file based on IP
 			// we want to avoid showing user IPs

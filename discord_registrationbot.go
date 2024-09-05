@@ -293,13 +293,15 @@ func handleMonitorCommand(s *discordgo.Session, m *discordgo.MessageCreate) {
 		return
 	}
 
-	// Calculate the expiration time
-	expiryTime := time.Now().Add(time.Duration(hours) * time.Hour)
+	// no-op for now - rely on alwaysMonitorChannel
 
-	// Update the monitored channels map
-	mu.Lock()
-	monitoredChannels[m.ChannelID] = expiryTime
-	mu.Unlock()
+//	// Calculate the expiration time
+//	expiryTime := time.Now().Add(time.Duration(hours) * time.Hour)
+//
+//	// Update the monitored channels map
+//	mu.Lock()
+//	monitoredChannels[m.ChannelID] = expiryTime
+//	mu.Unlock()
 
 	s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("Monitoring this channel for %d hours.", hours))
 }

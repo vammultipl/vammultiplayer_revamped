@@ -1,3 +1,4 @@
+![VaM Multiplayer Revamped Banner](./banner.png)
 # VaM Multiplayer Revamped Plugin
 
 This project expands on vamrobot's VaM Multiplayer Plugin:
@@ -136,6 +137,9 @@ Consult `start_server.sh` script on how to run the servers.
 ## Donate
 https://ko-fi.com/vammultipl
 Thanks!
+
+## Official logo
+![VaM Multiplayer Revamped Logo](./logo.webp)
 
 ## Credits
 Original plugin:

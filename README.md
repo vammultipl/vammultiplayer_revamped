@@ -68,7 +68,7 @@ Open the scene you want to play. It can be any scene with Person atoms in it. Se
 - Only Player joints and clothes status are synced; other elements like sex toys or UI changes are local and interaction with them is not visible to others.
 
 ## Registration and Commands
-Currently [this Discord server](https://discord.gg/45dxAsGG) has the registration bot. The community also hangs out in MetaChat and VamChat (MetaChat successor) servers.
+Currently [this Discord server](https://discord.gg/gsw2ERM8c2) has the registration bot. The community also hangs out in MetaChat and VamChat (MetaChat successor) servers.
 
 To register your IP, type `/register <your IP>` in a DM to the bot, for example: `/register 1.2.3.4`. Use a site like https://whatismyip.com to check your public IP.
 The registration is active for 1 week, then you have to re-register.
@@ -103,7 +103,7 @@ If you can't connect to the server, it might be due to:
 ## TL;DR I came from Metachat - how do I use this?
 MetaChat had web registration, lobbies with visible scenes, an in-game menu to synchronize other people's looks, and also a chat. This has none of that.
 Instead:
-- join [this Discord server](https://discord.gg/45dxAsGG)
+- join [this Discord server](https://discord.gg/gsw2ERM8c2)
 - registration is via Discord bot: `/register <your_IP>`
 - to check who's playing - ask Discord bot or register for notifications
 - scene is pre-shared and all players in a lobby should load the same one
@@ -113,7 +113,7 @@ Instead:
 - chat is via Discord :)
 
 ## Additional Help
-- Visit the [this Discord server](https://discord.gg/45dxAsGG) where we have a small community of players and scene makers. We also hang out in MetaChat and VamChat servers.
+- Visit the [this Discord server](https://discord.gg/gsw2ERM8c2) where we have a small community of players and scene makers. We also hang out in MetaChat and VamChat servers.
 - Recall the great guide made by VamMoose on the old Metachat plugin:
 
 Read section 4.5:

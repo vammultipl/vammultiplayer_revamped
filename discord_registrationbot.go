@@ -277,7 +277,7 @@ func getCurrentGameStatus() (string, error) {
 		return "", err
 	}
 
-	return fmt.Sprintf("%s\n%s\n\n", statusRoom1, statusRoom2), nil
+	return fmt.Sprintf("-----------------\n%s\n%s\n\n", statusRoom1, statusRoom2), nil
 }
 
 func getRoomStatus(filePath, roomLabel string) (string, error) {

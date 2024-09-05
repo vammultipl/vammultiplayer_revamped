@@ -21,6 +21,9 @@ var (
 	token          string
 	allowlistFile       = "allowlist.txt" // user IP allowlist
 	usernamesFile       = "usernames_ips.txt" // mapping of IPs into usernames
+	alwaysMonitorFileName = "always_monitor_channel.txt" // channel to always monitor (optional)
+	guildIDFileName = "guild_id.txt" // ID of the Discord server (used to fetch user nickname when they register)
+	guildID = "" // retrieved from guild_id.txt
 	expirationTime = 7 * 24 * 1 * time.Hour // 1 week expiration
 	allowlistMutex          sync.Mutex // Mutex to protect access to the allowlist and usernames file
 	prevPlayerStatus string = ""
@@ -29,7 +32,6 @@ var (
 	monitorMaxHours int = 16 // monitor for max 16 hours
 )
 
-const alwaysMonitorFileName = "always_monitor_channel.txt"
 
 func main() {
 	// Read the bot token from a file
@@ -47,6 +49,9 @@ func main() {
             log.Println("Quitting..")
             return
         }
+
+	// Read the guild ID
+        readGuildID()
 
 	scanner := bufio.NewScanner(tokenFile)
 	if scanner.Scan() {
@@ -70,7 +75,7 @@ func main() {
             messageCreate(s, m, channelName)
         })
 	// In this example, we only care about receiving message events.
-	dg.Identify.Intents = discordgo.IntentsGuildMessages | discordgo.IntentsDirectMessages
+	dg.Identify.Intents = discordgo.IntentsGuildMessages | discordgo.IntentsDirectMessages | discordgo.IntentsGuildMembers
 
 	// Open a websocket connection to Discord and begin listening.
 	err = dg.Open()
@@ -95,6 +100,26 @@ func main() {
 
 	// Cleanly close down the Discord session.
 	dg.Close()
+}
+
+func readGuildID() {
+        // Check if the guild ID file exists
+        if _, err := os.Stat(guildIDFileName); os.IsNotExist(err) {
+                // File does not exist, set guildID to an empty string
+                guildID = ""
+                return
+        }
+
+        // Read the contents of the guild ID file
+        data, err := ioutil.ReadFile(guildIDFileName)
+        if err != nil {
+                log.Printf("Failed to read %s: %v", guildIDFileName, err)
+                guildID = "" // Set to empty string on error
+                return
+        }
+
+        // Trim whitespace from the read data and set guildID
+        guildID = strings.TrimSpace(string(data))
 }
 
 func readChannelNameFromFile(filename string) (string, error) {
@@ -152,8 +177,26 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate, allowedChan
 		if len(parts) == 2 {
 			if (isValidIP(parts[1])) {
 				ip := strings.TrimSpace(parts[1])
+				// Get the nickname used by the user on the server
+				username := ""
+				if guildID != "" {
+					member, err := s.GuildMember(guildID, m.Author.ID)
+					if err != nil {
+						// Handle the error appropriately
+						log.Printf("Error fetching guild member: %v", err)
+						username = m.Author.Username
+					} else {
+						// Use the nickname if available, otherwise fallback to the username
+						username = member.Nick
+						if username == "" {
+						    username = m.Author.Username
+						}
+					}
+				} else {
+					username = m.Author.Username
+				}
 				// register IP in allowlist txt file and file with IP to username mapping
-				err := registerIP(ip, m.Author.Username)
+				err := registerIP(ip, username)
 				if err != nil {
 					log.Println("error: failed to register IP: ", ip)
 					s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("Failed to register IP"))

@@ -63,6 +63,7 @@ Open the scene you want to play. It can be any scene with Person atoms in it. Se
 - Scene modifications (changing looks, adding atoms etc) on your end won’t sync with others. Only clothes on/off status is synced.
 - The scene must be shared with other players on Discord first so that everyone sees the same things and has the same atoms. Otherwise, you can assume the default scene is used. Remember to download all dependencies for the scene.
 - Plugins also don't sync if you modify them, except for plugins like AutoThruster (as it moves the atoms)
+- Most popular scenes are: [XXXperience](https://hub.virtamate.com/resources/vam-mp-xxxperience.48719/) and [Love Hotel with a VAMMP video tutorial!](https://hub.virtamate.com/resources/vammp-love-hotel.50379/)
 
 ### Syncing
 - Only Player joints and clothes status are synced; other elements like sex toys or UI changes are local and interaction with them is not visible to others.
@@ -121,6 +122,8 @@ Read section 4.5:
 [VamMoose Metachat Guide](https://hub.virtamate.com/resources/metachat-toolkit.26478)
 
 For best results - use full body tracking with Embody plugin. Otherwise, put on MetaChatReady pose from old MetaChat toolkit on your atom and move around like section 4.5 says.
+
+There is also a [video tutorial](https://motherless.com/A1A5226) on how to move without full body trackers
 
 ## Hosting Your Own VaM Multiplayer (Optional)
 If you want to host everything yourself, you can recreate the whole VaM MP setup easily:

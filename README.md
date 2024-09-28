@@ -9,6 +9,8 @@ I have launched a centralized Linux server in Azure and added simple user regist
 
 [**TL;DR below**](https://github.com/vammultipl/vammultiplayer_revamped?tab=readme-ov-file#tldr-i-came-from-metachat---how-do-i-use-this)
 
+[**Linktree - make a small donation**](https://linktr.ee/vammultipl)
+
 ### New Features
 - Centralized server
 - Simple user registration by IP and lobby monitoring via Discord bot
@@ -139,6 +141,9 @@ Consult `start_server.sh` script on how to run the servers.
 
 ## Donate
 https://ko-fi.com/vammultipl
+
+https://donate.stripe.com/bIYaIyeI9ady3wAbIJ
+
 Thanks!
 
 ## Official logo

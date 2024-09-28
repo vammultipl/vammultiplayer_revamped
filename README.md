@@ -144,6 +144,8 @@ https://ko-fi.com/vammultipl
 
 https://donate.stripe.com/bIYaIyeI9ady3wAbIJ
 
+`bitcoin:bc1qpx29nh98c2l22tjfla3f0zchdqgzfm4whqtwgf?message=vammp_donation`
+
 Thanks!
 
 ## Official logo

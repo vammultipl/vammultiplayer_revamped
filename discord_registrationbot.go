@@ -2,9 +2,11 @@ package main
 
 import (
 	"bufio"
+	"bytes"
 	"fmt"
 	"io/ioutil"
 	"log"
+	"net"
 	"os"
 	"os/signal"
 	"regexp"
@@ -177,6 +179,11 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate, allowedChan
 		if len(parts) == 2 {
 			if (isValidIP(parts[1])) {
 				ip := strings.TrimSpace(parts[1])
+				if isLocalIP(ip) {
+				    log.Println("Register: local IP not allowed: ", ip)
+				    s.ChannelMessageSend(m.ChannelID, "Local IP addresses are not allowed. Please use a public IPv4 address.")
+				    return
+				}
 				// Get the nickname used by the user on the server
 				username := ""
 				if guildID != "" {
@@ -388,13 +395,13 @@ func getUsernameFromIP(ip string) (string, error) {
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
 		line := scanner.Text()
-		parts := strings.Split(line, " ")
+		parts := strings.SplitN(line, " ", 2) // Split only on the first space
 		if len(parts) != 2 {
-			continue // Skip lines that don't match the expected format
+			continue // Skip lines that don't have at least one space
 		}
 
 		if parts[0] == ip {
-			return parts[1], nil
+			return strings.TrimSpace(parts[1]), nil // Return the username, trimming any leading/trailing spaces
 		}
 	}
 
@@ -473,6 +480,32 @@ func isValidIP(ip string) bool {
 	ipTrimmed := strings.TrimSpace(ip)
 	re := regexp.MustCompile(`^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$`)
 	return re.MatchString(ipTrimmed)
+}
+
+func isLocalIP(ip string) bool {
+    ipAddress := net.ParseIP(strings.TrimSpace(ip))
+    if ipAddress == nil {
+        return false
+    }
+
+    // Check for private IP ranges
+    privateIPRanges := []struct {
+        start net.IP
+        end   net.IP
+    }{
+        {net.ParseIP("10.0.0.0"), net.ParseIP("10.255.255.255")},
+        {net.ParseIP("172.16.0.0"), net.ParseIP("172.31.255.255")},
+        {net.ParseIP("192.168.0.0"), net.ParseIP("192.168.255.255")},
+        {net.ParseIP("127.0.0.0"), net.ParseIP("127.255.255.255")},
+    }
+
+    for _, r := range privateIPRanges {
+        if bytes.Compare(ipAddress, r.start) >= 0 && bytes.Compare(ipAddress, r.end) <= 0 {
+            return true
+        }
+    }
+
+    return false
 }
 
 func startCleanupTimer() {

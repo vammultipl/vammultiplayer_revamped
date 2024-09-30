@@ -611,20 +611,13 @@ func startPlayerStateMonitor(s *discordgo.Session) {
 }
 
 func updatePlayerStatus(s *discordgo.Session) {
-    log.Println("Entering updatePlayerStatus function")
-
     gameStatus, err := getCurrentGameStatus()
     if err != nil {
         log.Println("Error getting game status:", err)
         return
     }
 
-    log.Printf("Current game status: %s", gameStatus)
-    log.Printf("Previous player status: %s", prevPlayerStatus)
-
     if gameStatus != prevPlayerStatus {
-        log.Println("Game status has changed")
-
         updateMonitoredChannelsWithStatus(s, gameStatus)
 
         // Parse previous players from prevPlayerStatus
@@ -633,7 +626,6 @@ func updatePlayerStatus(s *discordgo.Session) {
             log.Println("Error parsing previous player status:", err)
             previousPlayers = make(map[string]struct{}) // Assume no previous players
         }
-        log.Printf("Previous players: %v", previousPlayers)
 
         // Update previousPlayerStatus
         prevPlayerStatus = gameStatus
@@ -644,7 +636,6 @@ func updatePlayerStatus(s *discordgo.Session) {
             log.Println("Error parsing player status:", err)
             return
         }
-        log.Printf("Current players: %v", currentPlayers)
 
         // Determine newly joined players
         newlyJoinedPlayers := []string{}
@@ -653,7 +644,6 @@ func updatePlayerStatus(s *discordgo.Session) {
                 newlyJoinedPlayers = append(newlyJoinedPlayers, player)
             }
         }
-        log.Printf("Newly joined players: %v", newlyJoinedPlayers)
 
         // Determine disconnected players
         disconnectedPlayers := []string{}
@@ -662,59 +652,44 @@ func updatePlayerStatus(s *discordgo.Session) {
                 disconnectedPlayers = append(disconnectedPlayers, player)
             }
         }
-        log.Printf("Disconnected players: %v", disconnectedPlayers)
 
-	// Convert newly joined players to Discord usernames
-	var newlyJoinedUsernames []string
-	for _, player := range newlyJoinedPlayers {
-	    user, err := findUserInGuild(s, guildID, player)
-	    if err != nil {
-		log.Printf("Error finding user for player %s: %v", player, err)
-		continue
-	    }
-	    newlyJoinedUsernames = append(newlyJoinedUsernames, user.Username)
-	}
+        // Convert newly joined players to Discord usernames
+        var newlyJoinedUsernames []string
+        for _, player := range newlyJoinedPlayers {
+            user, err := findUserInGuild(s, guildID, player)
+            if err != nil {
+                log.Printf("Error finding user for player %s: %v", player, err)
+                continue
+            }
+            newlyJoinedUsernames = append(newlyJoinedUsernames, user.Username)
+        }
 
-	// Notify trackers about newly joined players (send DMs)
-	if len(newlyJoinedUsernames) > 0 {
-	    log.Println("Attempting to notify trackers")
-	    notifyTrackers(s, newlyJoinedUsernames)
-	} else {
-	    log.Println("No new players to notify trackers about")
-	}
+        // Notify trackers about newly joined players (send DMs)
+        if len(newlyJoinedUsernames) > 0 {
+            notifyTrackers(s, newlyJoinedUsernames)
+        }
 
-	// Reset notifiedTrackings for disconnected players
-	if len(disconnectedPlayers) > 0 {
-	    log.Println("Resetting notified status for disconnected players")
-	    for _, player := range disconnectedPlayers {
-		user, err := findUserInGuild(s, guildID, player)
-		if err != nil {
-		    log.Printf("Error finding user for player %s: %v", player, err)
-		    continue
-		}
-		resetNotified(user.Username)
-	    }
-	}
+        // Reset notifiedTrackings for disconnected players
+        for _, player := range disconnectedPlayers {
+            user, err := findUserInGuild(s, guildID, player)
+            if err != nil {
+                log.Printf("Error finding user for player %s: %v", player, err)
+                continue
+            }
+            resetNotified(user.Username)
+        }
 
         // Discord limitation on status length
         if len(gameStatus) > 125 {
-            log.Println("Game status too long, updating with default message")
             err = s.UpdateCustomStatus("Send /state command to check the state of rooms")
         } else {
-            log.Println("Updating custom status with game status")
             err = s.UpdateCustomStatus(gameStatus)
         }
 
         if err != nil {
             log.Println("Error updating custom status:", err)
-        } else {
-            log.Println("Custom status updated successfully")
         }
-    } else {
-        log.Println("Game status has not changed")
     }
-
-    log.Println("Exiting updatePlayerStatus function")
 }
 
 // parsePlayerStatus parses the game status string and returns a set of usernames.
@@ -1028,24 +1003,21 @@ func getTrackedUsers() (map[string][]string, error) {
 
     scanner := bufio.NewScanner(file)
     for scanner.Scan() {
-	line := strings.TrimSpace(scanner.Text())
-	log.Printf("Reading line: '%s'", line)
-	if line == "" {
-	    continue
-	}
-	parts := strings.SplitN(line, " ", 2)
-	log.Printf("Parsed parts: %+v", parts)
-	if len(parts) != 2 {
-	    log.Printf("Invalid tracking line format: %s", line)
-	    continue
-	}
-	trackedUser := parts[0]
-	trackers := strings.Split(parts[1], ",")
-	for i, tracker := range trackers {
-	    trackers[i] = strings.TrimSpace(tracker)
-	}
-	log.Printf("Mapped trackedUser '%s' to trackers %v", trackedUser, trackers)
-	trackedMap[trackedUser] = trackers
+        line := strings.TrimSpace(scanner.Text())
+        if line == "" {
+            continue
+        }
+        parts := strings.SplitN(line, " ", 2)
+        if len(parts) != 2 {
+            log.Printf("Invalid tracking line format: %s", line)
+            continue
+        }
+        trackedUser := parts[0]
+        trackers := strings.Split(parts[1], ",")
+        for i, tracker := range trackers {
+            trackers[i] = strings.TrimSpace(tracker)
+        }
+        trackedMap[trackedUser] = trackers
     }
 
     if err := scanner.Err(); err != nil {
@@ -1084,8 +1056,6 @@ func appendIfMissing(slice []string, item string) []string {
 }
 
 func removeTracking(tracker, trackedUser string) error {
-    log.Printf("Attempting to remove tracking: tracker=%s, trackedUser=%s", tracker, trackedUser)
-
     trackingMutex.Lock()
     defer trackingMutex.Unlock()
 
@@ -1095,51 +1065,34 @@ func removeTracking(tracker, trackedUser string) error {
         log.Printf("Error getting tracked users: %v", err)
         return err
     }
-    log.Printf("Current tracked map: %+v", trackedMap)
 
     // Remove the tracker from the trackedUser's tracker list
     if trackers, exists := trackedMap[trackedUser]; exists {
-        log.Printf("Found trackers for %s: %v", trackedUser, trackers)
         updatedTrackers := removeFromSlice(trackers, tracker)
-        log.Printf("Updated trackers after removal: %v", updatedTrackers)
         if len(updatedTrackers) == 0 {
-            log.Printf("Deleting %s from tracked map as no trackers left", trackedUser)
             delete(trackedMap, trackedUser)
         } else {
-            log.Printf("Updating trackers for %s", trackedUser)
             trackedMap[trackedUser] = updatedTrackers
         }
     } else {
-        log.Printf("%s is not being tracked", trackedUser)
         return fmt.Errorf("you are not tracking %s", trackedUser)
     }
 
-    log.Printf("Final tracked map before writing: %+v", trackedMap)
-
     // Write back to tracking.txt
-    err = writeTrackingData(trackedMap)
-    if err != nil {
-        log.Printf("Error writing tracking data: %v", err)
-    } else {
-        log.Printf("Successfully wrote tracking data")
-    }
-    return err
+    return writeTrackingData(trackedMap)
 }
 
 func removeFromSlice(slice []string, item string) []string {
-    log.Printf("Removing %s from slice: %v", item, slice)
     updated := []string{}
     for _, v := range slice {
         if v != item {
             updated = append(updated, v)
         }
     }
-    log.Printf("Updated slice: %v", updated)
     return updated
 }
 
 func writeTrackingData(trackedMap map[string][]string) error {
-    log.Printf("Writing tracking data: %+v", trackedMap)
     file, err := os.OpenFile(trackingFile, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
     if err != nil {
         log.Printf("Error opening tracking file: %v", err)
@@ -1150,20 +1103,13 @@ func writeTrackingData(trackedMap map[string][]string) error {
     writer := bufio.NewWriter(file)
     for trackedUser, trackers := range trackedMap {
         line := fmt.Sprintf("%s %s\n", trackedUser, strings.Join(trackers, ","))
-        log.Printf("Writing line: %s", line)
         if _, err := writer.WriteString(line); err != nil {
             log.Printf("Error writing line: %v", err)
             return err
         }
     }
 
-    err = writer.Flush()
-    if err != nil {
-        log.Printf("Error flushing writer: %v", err)
-    } else {
-        log.Printf("Successfully flushed writer")
-    }
-    return err
+    return writer.Flush()
 }
 
 // handleTrackCommand processes the /track <username> command.
@@ -1233,8 +1179,6 @@ func handleUntrackCommand(s *discordgo.Session, m *discordgo.MessageCreate, args
 }
 
 func sendDM(s *discordgo.Session, tracker, trackedUser string) {
-    log.Printf("Entering sendDM function for tracker %s and tracked user %s", tracker, trackedUser)
-
     user, err := findUserInGuild(s, guildID, tracker)
     if err != nil {
         log.Printf("Failed to find user %s: %v", tracker, err)
@@ -1242,15 +1186,12 @@ func sendDM(s *discordgo.Session, tracker, trackedUser string) {
     }
 
     message := fmt.Sprintf("👀 **%s** just joined! Come get'em!", trackedUser)
-    log.Printf("Prepared message: %s", message)
 
     channel, err := s.UserChannelCreate(user.ID)
     if err != nil {
         log.Printf("Failed to create DM channel for %s: %v", tracker, err)
         return
     }
-
-    log.Printf("Created DM channel with ID: %s", channel.ID)
 
     _, err = s.ChannelMessageSend(channel.ID, message)
     if err != nil {
@@ -1280,39 +1221,27 @@ func findUserInGuild(s *discordgo.Session, guildID string, userIdentifier string
 }
 
 func hasNotified(tracker, trackedUser string) bool {
-    log.Printf("Checking if %s has been notified about %s", tracker, trackedUser)
-
     notifiedMutex.Lock()
     defer notifiedMutex.Unlock()
 
     if trackers, exists := notifiedTrackings[trackedUser]; exists {
         if _, notified := trackers[tracker]; notified {
-            log.Printf("%s has already been notified about %s", tracker, trackedUser)
             return true
         }
     }
 
-    log.Printf("%s has not been notified about %s", tracker, trackedUser)
     return false
 }
-func markAsNotified(tracker, trackedUser string) {
-    log.Printf("Entering markAsNotified function for tracker %s and tracked user %s", tracker, trackedUser)
 
+func markAsNotified(tracker, trackedUser string) {
     notifiedMutex.Lock()
     defer notifiedMutex.Unlock()
 
-    log.Printf("Current notifiedTrackings before update: %+v", notifiedTrackings)
-
     if _, exists := notifiedTrackings[trackedUser]; !exists {
-        log.Printf("Creating new entry for tracked user %s", trackedUser)
         notifiedTrackings[trackedUser] = make(map[string]bool)
     }
 
     notifiedTrackings[trackedUser][tracker] = true
-
-    log.Printf("Updated notifiedTrackings: %+v", notifiedTrackings)
-    log.Printf("Marked %s as notified about %s", tracker, trackedUser)
-    log.Printf("Exiting markAsNotified function")
 }
 
 // resetNotified removes all notification records for the trackedUser.

@@ -748,8 +748,6 @@ func notifyTrackers(s *discordgo.Session, newlyJoinedPlayers []string) {
                 go sendDM(s, tracker, player)
                 // Mark as notified
                 markAsNotified(tracker, player)
-            } else {
-                log.Printf("%s has already been notified about %s", tracker, player)
             }
         }
     }

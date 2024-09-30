@@ -705,8 +705,8 @@ func parsePlayerStatus(gameStatus string) (map[string]struct{}, error) {
         }
 
         // Example player line formats:
-        // basketcase controls AVATAR3.
-        // clyd3division controls AVATAR1.
+        // user1 controls AVATAR3.
+        // user2 controls AVATAR1.
 
         if strings.Contains(line, "controls") {
             parts := strings.Split(line, "controls")

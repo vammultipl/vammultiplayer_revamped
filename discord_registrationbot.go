@@ -726,8 +726,6 @@ func parsePlayerStatus(gameStatus string) (map[string]struct{}, error) {
 
 
 func notifyTrackers(s *discordgo.Session, newlyJoinedPlayers []string) {
-    log.Printf("Entering notifyTrackers function with players: %v", newlyJoinedPlayers)
-
     // Get the current tracking data
     trackingMutex.Lock()
     trackedMap, err := getTrackedUsers()
@@ -738,22 +736,14 @@ func notifyTrackers(s *discordgo.Session, newlyJoinedPlayers []string) {
         return
     }
 
-    log.Printf("Current tracked map: %+v", trackedMap)
-
     for _, player := range newlyJoinedPlayers {
-        log.Printf("Processing player: %s", player)
         trackers, exists := trackedMap[player]
         if !exists {
-            log.Printf("No trackers found for player: %s", player)
             continue
         }
 
-        log.Printf("Trackers for %s: %v", player, trackers)
-
         for _, tracker := range trackers {
-            log.Printf("Checking if %s has been notified about %s", tracker, player)
             if !hasNotified(tracker, player) {
-                log.Printf("Sending DM to %s about %s", tracker, player)
                 // Send DM to tracker
                 go sendDM(s, tracker, player)
                 // Mark as notified
@@ -763,8 +753,6 @@ func notifyTrackers(s *discordgo.Session, newlyJoinedPlayers []string) {
             }
         }
     }
-
-    log.Printf("Exiting notifyTrackers function")
 }
 
 func updateMonitoredChannelsWithStatus(dg *discordgo.Session, currentState string) {

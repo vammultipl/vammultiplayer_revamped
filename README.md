@@ -42,6 +42,7 @@ Custom scenes:
 Open the scene you want to play. It can be any scene with Person atoms in it. Best remove any Timeline animations from it. Send the same scene .var file to other players so they can load the same one.
 
 ### Connecting to the Server
+Important: Before attempting to connect, you must register with the Discord bot via DM. The server will not allow unregistered IPs to connect. Registrations are valid for one week.
 1. **Open Plugin settings**
    - Go to Scene Plugins
    - Add [VAMMultiplayer.cs](https://raw.githubusercontent.com/vammultipl/vammultiplayer_revamped/main/VAMMultiplayer.cs) plugin if not already in the scene

@@ -1219,7 +1219,7 @@ Syncing:
 
         protected string GetCurrentSceneVarName()
         {
-            var sceneDir = SuperController.singleton.currentLoadDir;
+            var sceneDir = SuperController.singleton.LoadedSceneName;
             var _sceneVar = sceneDir;
             if (sceneDir.Contains(":"))
             {
